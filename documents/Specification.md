@@ -112,6 +112,7 @@ OrdinalX_Marketplace/
     ├── product/                      Category（ジャンル）/ Work（作品）
     ├── chain/                        Edition / ContentPart / MintJob / Manifest
     ├── listing/                      Listing / TxTemplate / Purchase / SettlementJob / ListingEvent
+    │                                 TakedownRequest / BlockedContent（§9.1）
     ├── vault/                        CK の保管と所有権判定（**別プロセス・別 DB・別鍵**）
     └── templates/ static/            市場固有のみ。シェルとテーマは UI キットから
 ```
@@ -146,6 +147,9 @@ OrdinalX_Marketplace/
 | `listing` | `SettlementJob` | 非原子的経路（プラットフォーム板・代理購入）の状態機械。冪等・`txid` 一意 |
 | `listing` | `ListingEvent` | 監査証跡。NC と同じ 4 段 + `SETTLE-*` |
 | `product` | `WorkFeeLedger` | 作成手数料のポリシースナップショットと実費（YP 分 / market 分を**分けて**） |
+| `listing` | `TakedownRequest` | `claimant` / `target` / `kind` / `state` / `received_at` / `decided_at` / `decision`（申し立ての受付と判断。§9.1） |
+| `listing` | `BlockedContent` | `kind(nft_origin\|txid\|sha256)` / `value` / `reason` / `actor`（運営 blocklist。§9.1） |
+| `vault` | `KeyRevocation` | `work_id` / `reason` / `actor` / `created_at`（CK の恒久失効。解除は二人承認。§9.1） |
 | — | `NftCache` | `thumb` は長辺 512px WebP・1 件 50 KB 上限・**総量上限と LRU を最初から**（ディスクが残り僅か） |
 
 `Listing.status`: `draft → pending → active → (sold｜cancelled｜invalid)`
@@ -357,19 +361,67 @@ SettlementJob: created → paid → (delivering) → delivered → settled
 | `subTypeData` | BE は無検証なので、エディション／シリアル／コメント／マニフェストはここに載せる |
 | シリアル | オンチェーンで不変にする。`comment` は上限 200 文字。`name` にも `#10/30`（`name` は BE が検証＝改竄不可） |
 | 正規性 | プロトコルでは強制されない。market が「コレクション親と同じ作成者の鍵から出ているか」を検証して**バッジ**を出す |
-| 暗号化 | AES-256-GCM（4 MB チャンクごと・AAD にチャンク番号）。**平文が存在するのはブラウザだけ** |
+| 暗号化 | AES-256-GCM（4 MB チャンクごと・AAD にチャンク番号）。**平文が存在するのはブラウザだけ**。**既定は暗号化**（`access=owner_only`）で、平文公開は人手審査の通過後のみ |
 | 鍵解放 | `vault` が**現在の所有者**を BE の `/user/nfts/info` で確認し、CK を購入者の公開鍵へ ECIES で再封。market の `Purchase` と突き合わせない（転売で権利が自動的に移る） |
 | 完全性 | `sha256_plain` とチャンクごとの `sha256` を**オンチェーンの `subTypeData`** に置く。market が差し替えても検知できる |
-| プレビュー | 長辺 512px WebP・30 KB 以内を**作品 NFT の inscription 本体**に置く。既存ウォレットの NFT 一覧がそのまま画像を表示する |
-| 審査 | **inscribe の前に審査**。R-18 と二次創作は人手審査必須。チャンク放送も承認後 |
+| プレビュー | 長辺 512px WebP・30 KB 以内を**作品 NFT の inscription 本体**に置く（**承認後**）。承認前は market のサムネキャッシュにだけ置く。プレビューは平文なので**唯一の恒久的な漏洩経路**になる |
+| 審査 | **inscribe の前に審査**。R-18・二次創作・平文公開・プレビューは人手審査必須。チャンク放送も承認後。審査者は CK を自分の鍵で開く（§9.1） |
 | マニフェスト | `ordinalx.work/1`（S009 §20.1）。`parts[]` を**公開仕様**にすることが「本体がチェーン上にある」ことの担保 |
 | サイズ上限 | 1 作品 **500 MB**（4 MB × 125 本）。1 日あたり総量上限も設ける |
 
 オンチェーンで**原理的にできないこと**を UI と規約で明示する: 購入者ごとの透かし（暗号文は 1 つ）、
 削除、鍵のローテーション。**DRM ではない**（復号後の平文のコピーは防げない）。
 
-> ⚠ 恒久性が効く唯一の防御線は**順序**である。`作成申請 → 審査 → 承認 → 暗号化・チャンク放送 → inscribe`
-> の順序を実装で固定する。申し立て後にできるのは delist と鍵解放停止まで。
+> ⚠ 恒久性が効く唯一の防御線は**順序**である。§9.1 の順序を実装で固定する。
+
+### 9.1 公開してはいけないデータが載った場合のガード
+
+他人の著作物・個人データ・流出情報が載る事故を前提に、入口と事後の両方を実装する。
+設計の全体と「できないことの表明」は S009 §20.3。
+
+**順序（唯一の本物の防御線）**
+
+```
+作成申請 → ブラウザで暗号化 → 暗号文を market の staging へ（チェーンには書かない）
+        → 審査（R-18 / 二次創作 / 平文公開 / プレビューは人手）
+        → 承認 → チャンク放送 → 親（プレビュー + マニフェスト）→ 子
+        ↑ 取り消せる（staging を捨てるだけ）              ↑ ここから不可逆
+```
+
+**審査者の閲覧経路**: vault が CK を**審査者の公開鍵**（作成者と同じ paymail identity 鍵 =
+xpub の `m/0/1`）へ ECIES で再封し、審査者のブラウザで復号する。平文は market にも vault にも
+渡らない。所有権判定の例外になるので `reviewer` ロールを明示し、**誰がいつどの作品を開いたかを
+vault の監査ログに残す**。
+
+**入口（事前）**
+
+| 層 | 実装 |
+|---|---|
+| 蛇口 | 本体チャンクは market の fee wallet が払う（§10）。作成者は 125 本の data tx を自力で出せないので**大型コンテンツは必ず市場を通る** |
+| 自動 | ブラウザ内で EXIF/GPS 除去、既知ハッシュ照合（perceptual hash を market に問い合わせ）、形式とサイズの検査 |
+| 禁止カテゴリ | 個人データ（本人確認書類・顔写真・連絡先・医療／金融情報）を規約と作成前ダイアログで禁止し、自動チェックでも弾く。**消去請求に原理的に応じられない**ので持たないことしか手が無い |
+| 抑止 | 平文公開と大型作成に身元確認を条件化。`principal` + txid の監査証跡、1 日総量上限 |
+
+**事後**
+
+| 手 | 実装 | 効き方 |
+|---|---|---|
+| 鍵の恒久失効 | `vault.KeyRevocation` — 以後 CK の再封を拒否。解除は二人承認 | 暗号化作品の kill switch。暗号文は残るが**誰も新たに読めない** |
+| 運営 blocklist | `listing.BlockedContent`（`nft_origin` / `txid` / `sha256`）。一覧・検索・詳細・サムネ・`parts[]` の返却を止める。FE 側にも同じキーで運営スコープを足す（利用者ごとの `HiddenNFT` とは別） | 自分の面では完全に見せない |
+| delist | `Listing.status = invalid` + 再出品禁止 | 売買を止める |
+| キャッシュ削除 | `NftCache.thumb` / staging / 本体キャッシュ | 自分が持つ複製を消す |
+| 受付と記録 | `listing.TakedownRequest`。**暫定 delist まで既定 24 時間**の SLA | 判断を残す |
+
+**実装上の制約**
+
+- staging はディスクを食う（1 作品最大 500 MB・`/mnt/extra` は残り約 3.4 GB）。
+  `MAX_STAGING_BYTES_TOTAL`・TTL（既定 72 時間）・**同時に審査待ちにできる作品数**の上限を
+  最初から入れる。却下と TTL 切れは即削除し、削除も監査ログに残す
+- 失効は**遡及しない**。既に購入して復号した人の手元の平文は止められない（DRM ではない）
+- **ウォレット直の inscribe は市場の審査を通らない** — BE の作成経路は `IsAuthenticated` と
+  レート制限だけで内容検証が無く、5 MB までなら市場を経由せず任意のバイト列が永久に書ける。
+  入口で本当に止めるには BE 側のガードが必要で、それは「BE への変更は 1 パラメータだけ」を
+  破るため別の決裁事項（§18 #12）
 
 ## 10. 手数料
 
@@ -425,6 +477,8 @@ cron をコンテナで動かすときは **`SQL_HOST` 等を crontab 側に明�
 | `MARKET_FEE_WALLET_*` | — | fee wallet の鍵は**env だけ**から。コードにも DB にも埋めない |
 | `MARKET_ENV` | `dev` | `dev｜prod`。板の問い合わせを常にこれで絞る（§13） |
 | `MARKET_DEV_PRINCIPALS` | 空 | dev の作成・出品を許す principal の allowlist |
+| `MAX_STAGING_BYTES_TOTAL` / `STAGING_TTL_HOURS` / `MAX_WORKS_IN_REVIEW` | — / 72 / — | 審査待ち暗号文の総量・TTL・同時件数（§9.1） |
+| `TAKEDOWN_PROVISIONAL_SLA_HOURS` | 24 | 申し立て受付から暫定 delist まで |
 | `ADMIN_URL` | — | admin の露出先。nginx で遮断する |
 | `STATIC_URL` | `/market-static/` | ウォレットの `/static/` と分ける |
 
@@ -516,7 +570,11 @@ fee wallet** から出る。market 側の緩和は 3 つで、**どれも捨て�
 9. **同一オリジンはセキュリティ境界ではない**。市場がそのオリジンに出すものにはウォレットと
    同じ審査基準を適用する。`SESSION_COOKIE_DOMAIN` は**未設定のまま維持**する。
 10. パスワード変更経路に触らない（KEK の再ラップを伴わない `set_password` 経路を作らない）。
-11. `vault` は **market のコンテナに鍵を渡さない**。同一ホストでは (a)→(b) は壁ではなく段差で、
+11. **チェーンに書く前に審査を通す**（§9.1）。承認前の暗号文は staging に留め、プレビューも
+    オンチェーンに載せない。審査者の閲覧は vault の監査ログに残す。
+12. **事後のガード（`KeyRevocation` / `BlockedContent` / `TakedownRequest`）を最初から実装する。**
+    「あとで足す」と事故の当日に手が無い。個人データは入口で弾く。
+13. `vault` は **market のコンテナに鍵を渡さない**。同一ホストでは (a)→(b) は壁ではなく段差で、
     上限を決めるのは**鍵の保管方式**（§18 #5）。**マスター鍵と CK ストアを失うと全ての暗号化作品が
     永久に復号不能**になる（暗号文はチェーン上にあって消せないのに誰も読めない）。vault の DB の
     バックアップは market の DB より優先度が高い。
@@ -583,7 +641,7 @@ nginx の location 2 本と nav を外すと `/market/` が 404 になり、FE �
 | **Spike 0** | ① OrdLock 経由で移動した ordinal を BE の既存 recovery が再紐付けできるか（§8.5）② OrdLock script の Python 実装と 1Sat 互換 ③ ARC の `maxtxsizepolicy` とデータ出力 tx の受理可否 ④ **OrdLock が payout 出力を「位置で」検証するか「含まれているか」で検証するか**（まとめ買いの可否が決まる） | testnet/本番少額で「出品→購入→BE の NFT 一覧に買い手側で出る」まで通る |
 | **Phase 1** | market が UI と公開一覧を出す + nginx のパスマウント + イントロスペクション（**書き込みなし・ダミーデータ可**） | PWA の中で `/market/` が開き、撤去テストが通る |
 | **Phase 2** | NC 出品・キャンセル（**S010 の 1 パラメータ追加を含む**） | 出品が `active` になり、キャンセルで NFT がウォレットに戻る |
-| **Phase 2.5** | 作品の作成（オンチェーン本体・限定・暗号化と鍵解放・プレビュー・マニフェスト） | 50 MB の作品を限定 30 点で作成し、購入者だけが復号できる |
+| **Phase 2.5** | 作品の作成（オンチェーン本体・限定・暗号化と鍵解放・プレビュー・マニフェスト）＋ **審査フローと事後ガード**（§9.1） | 50 MB の作品を限定 30 点で作成し、購入者だけが復号できる。**却下するとチェーンに 1 バイトも書かれていない**ことと、`KeyRevocation` を立てると新たな復号ができなくなることを実機で確認 |
 | **Phase 3** | NC 購入（原子的スワップ）+ BE 再同期 + reconcile | 別ユーザー間で売買が成立し、両者の BE 残高/NFT 一覧が追随する |
 | **Phase 3.5** | custodial 対応（予約・成約、代理購入、`SettlementJob` と補償） | 引き渡し失敗時に返金まで回る |
 | **Phase 4** | 市場手数料、検索・並び替え、履歴、通知、板の統合表示 | — |
@@ -627,4 +685,5 @@ S009 §13 / §13-b、S011 §12、S012 §11 のうち**まだ生きているも�
 | 8 | 出品の有効期限・値下げ（S009 §13 #7） | 期限なし。値下げは cancel + list の 2 tx | Phase 4 |
 | 9 | 代理購入の前払いの自動化範囲（S009 §13-b #17） | 都度送金。市場内残高は資金決済法の整理が必要 | Phase 3.5 |
 | 10 | プラットフォーム板の引き渡し失敗時の補償（S009 §13-b #16） | 代金全額返金 + 市場手数料は徴収しない | Phase 3.5 |
+| 12 | **ウォレット直の inscribe を BE 側で止めるか**（§9.1 / S009 §13-b #20） | **未決**。止めると「BE への変更は 1 パラメータだけ」を破る。既定案は当面入れず、導線・規約・監査・レート制限・身元確認で抑止 | Phase 2.5 |
 | 11 | `vault` を別リポジトリに分けるか | **同リポジトリ・別プロセス**（S011 §12 #5）。リポジトリ分割は組織上の判断として先送り可 | Phase 2.5 |
