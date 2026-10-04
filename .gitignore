@@ -254,7 +254,7 @@ node_modules/
 /app/static/assets/libs/
 
 # Documents
-documents/
+# documents/ は追跡する（documents/Specification.md が実装仕様の正）
 
 # E2E test config (contains credentials)
 app/e2e/settings.yaml
