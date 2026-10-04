@@ -12,7 +12,8 @@
 | 層 | 正（source of truth） |
 |---|---|
 | 機能設計（決済方式・オンチェーン本体・認証の考え方・作品フォーマット） | [`S009`](../../documents/S009_marketplace_spec.md) |
-| BE への変更 1 件（`recipient_locking_script`） | [`S010`](../../documents/S010_be_locking_script_param_decision.md) |
+| BE への変更 ①（出品の `recipient_locking_script`） | [`S010`](../../documents/S010_be_locking_script_param_decision.md) |
+| BE への変更 ②（作成の暗号化オプション） | [`S013`](../../documents/S013_be_encryption_option_decision.md) |
 | 実装土台・スタック・環境構成・デプロイ | [`S011`](../../documents/S011_marketplace_base_and_environments.md) |
 | UI の提供形態（オリジンと PWA）・デザインの一元化 | [`S012`](../../documents/S012_marketplace_ui_delivery_decision.md) |
 | **このリポジトリの構成・設定・着手順序** | **本書** |
@@ -90,7 +91,9 @@ bsv-sdk・キットの切り出し・compose・nginx・nav** で、内訳は §1
 1. **market は秘密鍵を持たない**。例外は fee wallet のみ（別鍵・上限つき・残高監視つき）。
 2. **market は BE の DB に触らない**。読み取り API ＋ BE 自身の自己再同期 EP だけを叩く（S009 §6.1）。
 3. **端末は market を信頼しない**。未署名 tx は必ず端末側で意図検証する（§8.4）。
-4. **BE への変更は S010 の 1 パラメータだけ**。これを増やす提案は S010 の比較表に戻って判断する。
+4. **BE への変更は 2 件だけ** — ① 出品の `recipient_locking_script`（[`S010`](../../documents/S010_be_locking_script_param_decision.md)）
+   ② 作成の暗号化オプション `access` / `cipher`（[`S013`](../../documents/S013_be_encryption_option_decision.md)）。
+   どちらも加算のみ・既定動作不変。3 件目の提案は各決定記録の比較表に戻って判断する。
 
 ## 4. リポジトリ構成
 
@@ -357,7 +360,7 @@ SettlementJob: created → paid → (delivering) → delivered → settled
 | 1 inscription | **1 MB 以内**（プレビュー + メタデータ）。4 層の上限すべてに収まる既定値 |
 | 費用 | **100 sat/kB**（`nc_fee_rate()`。spec の 1000 sat/kB は運用で採らない）。1 MB ≒ 100,000 sat |
 | 限定 N 点 | 親が本体を 1 回だけ載せ、子は `subTypeData` のマニフェスト抜粋のみ。**点数は費用にほぼ影響しない**（30 点で約 3,000 sat） |
-| 作成経路 | 既存 NC の `prepare` → 端末で組立/署名 → `broadcast` の片道方式。**BE 変更は不要** |
+| 作成経路 | 既存 NC の `prepare` → 端末で組立/署名 → `broadcast` の片道方式。**`access` / `cipher` / `approval` の 3 引数だけ追加**（[`S013`](../../documents/S013_be_encryption_option_decision.md)。既定値では挙動不変） |
 | `subTypeData` | BE は無検証なので、エディション／シリアル／コメント／マニフェストはここに載せる |
 | シリアル | オンチェーンで不変にする。`comment` は上限 200 文字。`name` にも `#10/30`（`name` は BE が検証＝改竄不可） |
 | 正規性 | プロトコルでは強制されない。market が「コレクション親と同じ作成者の鍵から出ているか」を検証して**バッジ**を出す |
@@ -418,10 +421,12 @@ vault の監査ログに残す**。
   `MAX_STAGING_BYTES_TOTAL`・TTL（既定 72 時間）・**同時に審査待ちにできる作品数**の上限を
   最初から入れる。却下と TTL 切れは即削除し、削除も監査ログに残す
 - 失効は**遡及しない**。既に購入して復号した人の手元の平文は止められない（DRM ではない）
-- **ウォレット直の inscribe は市場の審査を通らない** — BE の作成経路は `IsAuthenticated` と
-  レート制限だけで内容検証が無く、5 MB までなら市場を経由せず任意のバイト列が永久に書ける。
-  入口で本当に止めるには BE 側のガードが必要で、それは「BE への変更は 1 パラメータだけ」を
-  破るため別の決裁事項（§18 #12）
+- **ウォレット直の inscribe は BE 側で塞ぐ**（[`S013`](../../documents/S013_be_encryption_option_decision.md)）。
+  作成経路に `access`（`public` / `owner_only`）と `cipher` を足し、`owner_only` は表示されない
+  `content_type`（既定 `application/octet-stream`）に限定、`public` はポリシーが有効なとき
+  **承認トークン**を要求する。**BE は「暗号化されていること」自体は検証できない** — 効くのは
+  「見られる形で載るには宣言された media type が要る」性質で、表示経路が塞がる。
+  既定値では挙動不変で、抜け道が実際に閉じるのは `NC_NFT_PUBLIC_REQUIRES_APPROVAL=True` の時点
 
 ## 10. 手数料
 
@@ -641,7 +646,7 @@ nginx の location 2 本と nav を外すと `/market/` が 404 になり、FE �
 | **Spike 0** | ① OrdLock 経由で移動した ordinal を BE の既存 recovery が再紐付けできるか（§8.5）② OrdLock script の Python 実装と 1Sat 互換 ③ ARC の `maxtxsizepolicy` とデータ出力 tx の受理可否 ④ **OrdLock が payout 出力を「位置で」検証するか「含まれているか」で検証するか**（まとめ買いの可否が決まる） | testnet/本番少額で「出品→購入→BE の NFT 一覧に買い手側で出る」まで通る |
 | **Phase 1** | market が UI と公開一覧を出す + nginx のパスマウント + イントロスペクション（**書き込みなし・ダミーデータ可**） | PWA の中で `/market/` が開き、撤去テストが通る |
 | **Phase 2** | NC 出品・キャンセル（**S010 の 1 パラメータ追加を含む**） | 出品が `active` になり、キャンセルで NFT がウォレットに戻る |
-| **Phase 2.5** | 作品の作成（オンチェーン本体・限定・暗号化と鍵解放・プレビュー・マニフェスト）＋ **審査フローと事後ガード**（§9.1） | 50 MB の作品を限定 30 点で作成し、購入者だけが復号できる。**却下するとチェーンに 1 バイトも書かれていない**ことと、`KeyRevocation` を立てると新たな復号ができなくなることを実機で確認 |
+| **Phase 2.5** | 作品の作成（オンチェーン本体・限定・暗号化と鍵解放・プレビュー・マニフェスト）＋ **審査フローと事後ガード**（§9.1）＋ **BE の暗号化オプション**（S013） | 50 MB の作品を限定 30 点で作成し、購入者だけが復号できる。**却下するとチェーンに 1 バイトも書かれていない**ことと、`KeyRevocation` を立てると新たな復号ができなくなることを実機で確認 |
 | **Phase 3** | NC 購入（原子的スワップ）+ BE 再同期 + reconcile | 別ユーザー間で売買が成立し、両者の BE 残高/NFT 一覧が追随する |
 | **Phase 3.5** | custodial 対応（予約・成約、代理購入、`SettlementJob` と補償） | 引き渡し失敗時に返金まで回る |
 | **Phase 4** | 市場手数料、検索・並び替え、履歴、通知、板の統合表示 | — |
@@ -685,5 +690,5 @@ S009 §13 / §13-b、S011 §12、S012 §11 のうち**まだ生きているも�
 | 8 | 出品の有効期限・値下げ（S009 §13 #7） | 期限なし。値下げは cancel + list の 2 tx | Phase 4 |
 | 9 | 代理購入の前払いの自動化範囲（S009 §13-b #17） | 都度送金。市場内残高は資金決済法の整理が必要 | Phase 3.5 |
 | 10 | プラットフォーム板の引き渡し失敗時の補償（S009 §13-b #16） | 代金全額返金 + 市場手数料は徴収しない | Phase 3.5 |
-| 12 | **ウォレット直の inscribe を BE 側で止めるか**（§9.1 / S009 §13-b #20） | **未決**。止めると「BE への変更は 1 パラメータだけ」を破る。既定案は当面入れず、導線・規約・監査・レート制限・身元確認で抑止 | Phase 2.5 |
+| 12 | `NC_NFT_PUBLIC_REQUIRES_APPROVAL` をいつ `True` にするか（§9.1 / [`S013`](../../documents/S013_be_encryption_option_decision.md) §10 #4） | **決定: BE 側で止める**（2026-10-05）。切り替え時期は審査体制が回り始めてから。切り替え前に FE のエラー表示を用意する | Phase 2.5 の後半 |
 | 11 | `vault` を別リポジトリに分けるか | **同リポジトリ・別プロセス**（S011 §12 #5）。リポジトリ分割は組織上の判断として先送り可 | Phase 2.5 |
