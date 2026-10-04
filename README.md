@@ -5,6 +5,12 @@ OrdinalX の NFT マーケットプレイス。空の Django プロジェクト�
 - リモート: `origin` = `voyager1708/OrdialX_Marketplace`（開発はこちらに統一）
 - 関連: [OrdinalX_Frontend_WalletUI](../OrdinalX_Frontend_WalletUI)（FE）, [OrdinalX_Backend](../OrdinalX_Backend)（BE / SPV）
 
+## 仕様
+
+実装仕様は [documents/Specification.md](documents/Specification.md)。設計の根拠と経緯は
+`/mnt/extra/documents` の S009（機能設計）/ S010（BE 変更 1 件）/ S011（土台と環境）/
+S012（UI の提供形態）が正で、Specification.md はそれをこのリポジトリの実装契約に落としたもの。
+
 ## 構成
 
 FE/BE と同じく Django プロジェクトは `app/` 以下に置く。設定パッケージは `app/yp_marketplace/`。
