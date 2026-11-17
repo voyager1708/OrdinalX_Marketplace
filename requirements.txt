@@ -1,1 +1,16 @@
+# BE (app/requirements.txt) と同じピンに揃える。マイナーがずれると
+# エンベロープ・スキーマ生成の挙動が BE と食い違う（§2「Django 5.2.12 / BE と同一マイナー」）。
 Django==5.2.12
+djangorestframework==3.15.2
+drf-spectacular==0.29.0
+python-dotenv==0.20.0
+
+# Postgres（§2「専用 DB yp_market / yp_market_dev。yp_dev_db は共有しない」）
+psycopg==3.1.18
+psycopg-binary==3.1.18
+
+# サムネイルの再エンコード（§14-6。長辺 512px WebP・1 件 50KB 上限）
+pillow==12.1.1
+
+# bsv-sdk は P0-10 で Dockerfile 内の git 版（BE と同じ C 拡張ビルド）を入れる。
+# ここに pypi 版を書くと BE と別実装になるので書かない。

@@ -277,3 +277,13 @@ app/.certs/
 
 # linode 同居 FE 専用 db の env（git 管理外）
 .env.linode.db
+
+# --- OrdinalX Marketplace ---
+# .env は上の "# dotenv" で無視される。env.local（.env の後に読む上書き）も追跡しない。
+env.local
+# vault の sqlite（鍵のテーブルが入る。db.sqlite3 は上で既に無視）
+*.sqlite3
+# collectstatic の出力（nginx が alias で出す側）
+/app/market-static/
+# 審査待ち暗号文の staging（1 作品最大 500MB。Specification.md §9.1）
+/app/staging/

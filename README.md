@@ -2,42 +2,108 @@
 
 OrdinalX の NFT マーケットプレイス。空の Django プロジェクトから新規に立ち上げた土台。
 
-- リモート: `origin` = `voyager1708/OrdialX_Marketplace`（開発はこちらに統一）
+- リモート: `origin` = `voyager1708/OrdinalX_Marketplace`（開発はこちらに統一）
 - 関連: [OrdinalX_Frontend_WalletUI](../OrdinalX_Frontend_WalletUI)（FE）, [OrdinalX_Backend](../OrdinalX_Backend)（BE / SPV）
 
 ## 仕様
 
 実装仕様は [documents/Specification.md](documents/Specification.md)。設計の根拠と経緯は
 `/mnt/extra/documents` の S009（機能設計）/ S010（BE 変更 1 件）/ S011（土台と環境）/
-S012（UI の提供形態）が正で、Specification.md はそれをこのリポジトリの実装契約に落としたもの。
+S012（UI の提供形態）/ S013（BE 変更 2 件目）が正で、Specification.md はそれをこの
+リポジトリの実装契約に落としたもの。食い違いを見つけたら**上位文書が正**。
 
 ## 構成
 
-FE/BE と同じく Django プロジェクトは `app/` 以下に置く。設定パッケージは `app/yp_marketplace/`。
+FE/BE と同じく Django プロジェクトは `app/` 以下に置く。
+
+```
+app/
+├── yp_marketplace/        market の settings / urls / API 共通層（api/）
+├── yp_marketplace_vault/  vault 専用 settings（別プロセス・別 DB・別鍵）
+├── accounts/              BE ユーザーの投影（認証主体は持たない）
+├── vendor/                サークル／作家
+├── product/               Category / Work / WorkFeeLedger
+├── chain/                 Edition / ContentPart / MintJob / Manifest / NftCache
+├── listing/               Listing / TxTemplate / Purchase / SettlementJob /
+│                          ListingEvent / TakedownRequest / BlockedContent
+└── vault/                 SealedKey / KeyRelease / KeyRevocation / AgeVerification
+```
+
+- `order` / `cart` は作らない（S011 §12 #4）
+- `vault` は market の `INSTALLED_APPS` に**入れない**。鍵のテーブルを帳簿 DB に作らないため
+- API の実パスは `/market/api/v1/...`（nginx が `/market/` をパスごと渡す）
 
 ## セットアップ
 
 専用の venv を使う（FE の `/mnt/extra/venv`、BE の `/mnt/extra/venv_nc_pwa` とは別）。
 
 ```bash
-/mnt/extra/venv_marketplace/bin/python app/manage.py migrate
-/mnt/extra/venv_marketplace/bin/python app/manage.py runserver 8003
+python3 -m venv /mnt/extra/venv_marketplace          # 新しい環境のときだけ
+/mnt/extra/venv_marketplace/bin/pip install -r requirements.txt
+cp .env.example .env                                 # 値を埋める（.env は git 管理外）
 ```
 
-新しい環境では:
+## 動かす
 
 ```bash
-python3 -m venv /mnt/extra/venv_marketplace
-/mnt/extra/venv_marketplace/bin/pip install -r requirements.txt
+# market（API と画面）
+/mnt/extra/venv_marketplace/bin/python app/manage.py migrate
+/mnt/extra/venv_marketplace/bin/python app/manage.py runserver 127.0.0.1:8100
+
+# vault（鍵。別 settings・別 DB）
+/mnt/extra/venv_marketplace/bin/python app/manage.py migrate --settings=yp_marketplace_vault.settings
+/mnt/extra/venv_marketplace/bin/python app/manage.py runserver 127.0.0.1:8101 --settings=yp_marketplace_vault.settings
+```
+
+確認できる経路（Phase 0 の時点）:
+
+| URL | 中身 |
+| --- | --- |
+| `/market/admin/` | admin（`ADMIN_URL` で変えられる。nginx 側でも遮断する） |
+| `/market/api/v1/schema/` | OpenAPI スキーマ |
+| `/market/api/v1/schema/swagger-ui/` | Swagger UI |
+
+admin に入るには運用アカウントを 1 つ作る（BE のユーザーとは無関係）:
+
+```bash
+/mnt/extra/venv_marketplace/bin/python app/manage.py createsuperuser
+```
+
+## テスト
+
+**sqlite 上書きの settings を必ず渡す。** Postgres を向いたまま走らせるとテスト用 DB を
+作れずに全件 ERROR になる（FE・BE で何度も踏んでいる）。
+
+```bash
+# market
+/mnt/extra/venv_marketplace/bin/python app/manage.py test --settings=yp_marketplace.settings_test
+
+# vault（market の settings では境界を保つためスキップされる）
+/mnt/extra/venv_marketplace/bin/python app/manage.py test vault --settings=yp_marketplace_vault.settings
 ```
 
 ## 設定の環境変数
 
-`settings.py` は FE/BE と同じ作法で環境変数から読む。未設定なら開発用の既定値になる。
+一覧と既定値は [documents/Specification.md](documents/Specification.md) §12、テンプレートは
+[.env.example](.env.example)。`settings.py` は FE/BE と同じ作法で `.env` → `env.local` の順に読む。
 
-| 変数 | 既定 | 備考 |
-| --- | --- | --- |
-| `SECRET_KEY` | 開発用の固定値 | 本番では必ず設定する |
-| `DEBUG` | 無効（0） | |
-| `DJANGO_ALLOWED_HOSTS` | `127.0.0.1 localhost` | 空白区切り |
-| `SQL_ENGINE` / `SQL_DATABASE` / `SQL_USER` / `SQL_PASSWORD` / `SQL_HOST` / `SQL_PORT` | sqlite3 / `app/db.sqlite3` | postgres に差し替え可 |
+要点だけ:
+
+| 変数 | 役割 |
+| --- | --- |
+| `SQL_*` | market の DB。`yp_market_dev` / `yp_market`。`yp_dev_db` は共有しない |
+| `VAULT_SQL_*` | vault の DB。**market と変数名を共有しない**（取り違えると鍵が帳簿 DB に入る） |
+| `BE_API_BASE_URL` | BE への唯一の結線。docker のネットワーク名・コンテナ名・IP はコードに書かない |
+| `MARKET_ENV` | `dev｜prod`。板の問い合わせを常にこれで絞る（BE の dev と暫定本番が同じ DB を見ているため） |
+| `ARC_CALLBACK_URL` | 未設定だと放送が同期ポーリング 20 回で 504 になる。本番では必ず設定する |
+| `ADMIN_URL` | admin の露出先 |
+
+## 開発 DB について（過渡期）
+
+開発用の `yp_market_dev` は betawallet の Postgres 17.5 コンテナ（`127.0.0.1:5432`）の中に
+**専用 database** として置いている。同じサーバに `ticket_system` 等が同居しているのと同じ形で、
+`yp_dev_db` とテーブルは一切共有しない。P0-7 で `market-db` コンテナを立てたら
+`SQL_HOST` を差し替えるだけで移る。
+
+> ⚠ betawallet のスタックには FE 本番がぶら下がっている。`docker compose down` は禁止で、
+> `up -d` はサービスを明示して `--no-build` を付ける。

@@ -21,17 +21,19 @@
 本書と上位文書の対応は §17 に表でまとめた。**食い違いは無い**前提で、もし見つかったら
 **上位文書が正**で本書のバグである。
 
-## 1. 現状（2026-10-04 実測）
+## 1. 現状（2026-11-18 時点。初回の実測は 2026-10-04）
 
 着手順序を決めるために、前提になるものが「ある／無い」を実際に確認した。
+P0-1〜P0-4 を入れた時点で変わった行は反映してある。
 
 | 項目 | 状態 |
 |---|---|
-| 本リポジトリ | Django 5.2.12 の**空プロジェクト**。`app/yp_marketplace/`（settings/urls/wsgi/asgi）と `app/manage.py` のみ。`manage.py check` / `migrate` 通過 |
-| DB | **sqlite 既定のまま**（`SQL_*` env で差し替え可能な形だけ入れた）。Postgres 未接続 |
-| DRF / drf-spectacular / bsv-sdk | **未導入**（`requirements.txt` は `Django==5.2.12` 1 行） |
+| 本リポジトリ | §4 の 6 アプリ（`accounts` / `vendor` / `product` / `chain` / `listing` / `vault`）と `yp_marketplace_vault` の骨格まで。`manage.py check` / `migrate` 通過、test 30 件 + vault 3 件が PASS |
+| DB | **Postgres 接続済み**。開発は `yp_market_dev`（専用 role `yp_market_user`）。既定値は §12 のとおり sqlite のままで、差し替えは `.env` |
+| DRF / drf-spectacular | **導入済み**（BE と同じピン: `3.15.2` / `0.29.0`）。エンベロープとエラーコードは `yp_marketplace/api/` に共通化 |
+| bsv-sdk | **未導入**（P0-10。BE と同じ git 版を Dockerfile で入れる） |
 | 開発 venv | `/mnt/extra/venv_marketplace`（Python 3.12.3 / Django 5.2.12）。FE・BE の venv とは分離 |
-| docker / nginx / cron | **未作成** |
+| docker / nginx / cron | **未作成**（P0-7・P0-8） |
 | 署名コアと UI キットの版付きパッケージ（S012 §6・§8.1） | **未着手**。FE に `.gitmodules` は無く、`package.json` は template 由来の `ynex` のまま |
 | `components/nav-extra.html`（S009 §3.3） | **未作成** |
 | fe-nginx の `location /market/` | **未設定**。`OrdinalX_Frontend_WalletUI/nginx/nginx.http.conf` に market の記述は無く、`location /` が最後にある構造は S012 §8 の前提どおり |
@@ -41,8 +43,15 @@
 | FE の `/auth/bff/token` | 実在（`wallet_web_ui/urls.py:58` `BffAccessTokenView`） |
 | s006 骨格 / gaudi スキン | 実在（`app/src/css/s006.css` 14 KB / `app/src/css/gaudi.css` 61 KB） |
 
-つまり **Phase 0 の成果物はまだ 1 つも無い**。やることは **Postgres・DRF・アプリ骨格と migration・
-bsv-sdk・キットの切り出し・compose・nginx・nav** で、内訳は §16、上位は S011 §10。
+つまり Phase 0 のうち **土台（P0-1〜P0-4）は入った**。残りは **キットの切り出し（P0-5）・
+市場の 1 画面（P0-6）・compose（P0-7）・nginx と restart.sh（P0-8）・nav（P0-9）・
+bsv-sdk（P0-10）** で、内訳は §16、上位は S011 §10。
+
+> 開発 DB は betawallet の Postgres 17.5 コンテナ内に**専用 database** として置いた
+> 過渡期の形（`ticket_system` が同居しているのと同じ形）。`yp_dev_db` とテーブルは
+> 一切共有していない。P0-7 で `market-db` を立てたら `SQL_HOST` の差し替えだけで移る。
+> なお開発 DB は `template0` から `C` ロケールで作っている（コンテナの glibc 更新で
+> `template1` の collation version がずれており、既定のテンプレートからは作成できない）。
 
 ## 2. 確定した構成
 
@@ -654,6 +663,11 @@ nginx の location 2 本と nav を外すと `/market/` が 404 になり、FE �
 
 **Phase 0 を飛ばして機能を書き始めない。** 特に P0-5（キットの切り出し）を後回しにすると、
 鍵を扱う実装とデザインが 2 箇所に分岐し、あとで統合できなくなる。
+
+**進捗（2026-11-18）**: P0-1〜P0-4 完了。P0-3 では §5 のモデルに加えて
+事後ガード（`TakedownRequest` / `BlockedContent` / `KeyRevocation`）と vault 側の
+`SealedKey` / `KeyRelease` / `AgeVerification` も同じ migration に入れた
+（§14-12「あとで足すと事故の当日に手が無い」）。次は **P0-5**。
 
 ## 17. 上位文書との対応
 
