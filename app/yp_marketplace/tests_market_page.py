@@ -15,7 +15,7 @@ from urllib.parse import unquote
 
 from django.conf import settings
 from django.contrib.staticfiles import finders
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase, TestCase
 from django.urls import reverse
 
 KIT_DIR = Path(settings.WALLET_KIT_DIR)
@@ -81,6 +81,39 @@ class MarketIndexTests(SimpleTestCase):
         own = {c for c in re.findall(r'class="([^"]+)"', page)
                for c in c.split() if c.startswith('market-')}
         self.assertEqual(own, set(), f'市場固有のクラスを作っている: {own}')
+
+
+@skip_without_kit
+class BoardFragmentTests(TestCase):
+    """
+    板の中身は HTMX が取りに来るフラグメント（S012 §8.1 の画面の作法）。
+    問い合わせは listing.queries を通すので MARKET_ENV と blocklist が効く。
+    """
+
+    def test_skeleton_points_at_the_fragment(self):
+        html = self.client.get(reverse('index')).content.decode()
+        self.assertIn('hx-get="/market/board"', html)
+        self.assertIn('s006-skel', html, '骨組みのスケルトンが無い')
+
+    def test_fragment_is_empty_state_without_listings(self):
+        html = self.client.get(reverse('board-fragment')).content.decode()
+        self.assertIn('まだ出品がありません', html)
+
+    def test_fragment_lists_visible_rows_only(self):
+        from listing.models import BlockedContent, BlockedKind
+        from listing.tests_api import make_listing
+
+        shown = make_listing(nft_origin='v' * 64 + '_0', price_satoshis=12345)
+        hidden = make_listing(nft_origin='w' * 64 + '_0', price_satoshis=999)
+        BlockedContent.objects.create(kind=BlockedKind.NFT_ORIGIN, value=hidden.nft_origin)
+        make_listing(nft_origin='u' * 64 + '_0', price_satoshis=888, market_env='prod')
+
+        html = self.client.get(reverse('board-fragment')).content.decode()
+        # 価格は金額扱いなので桁区切りで出る（S012 §8.1）
+        self.assertIn('12,345', html)
+        self.assertNotIn('999', html, 'blocklist の行が板に出ている')
+        self.assertNotIn('888', html, '別 env の行が板に出ている')
+        self.assertIn(shown.nft_origin[:12], html)
 
 
 @skip_without_kit

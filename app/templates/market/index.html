@@ -28,13 +28,18 @@
       </a>
     </div>
 
-    <div class="s006-empty">
-      <div class="s006-empty__icon"><i class="bi bi-shop" aria-hidden="true"></i></div>
-      <p class="s006-empty__title">まだ出品がありません</p>
-      <p class="s006-empty__body">
-        最初の出品が出るとここに並びます。出品は NFT をロックスクリプトへ移して行い、
-        購入は 1 本の取引で NFT と代金が同時に動きます。
-      </p>
+    {% comment %}
+    骨組みを先に返し、板の中身は HTMX が取りに来る（S012 §8.1 の「画面の作法」）。
+    JS が無い・HTMX が落ちている環境では、ここのスケルトンがそのまま残る。
+    {% endcomment %}
+    <div id="market-board"
+         hx-get="{% url 'board-fragment' %}"
+         hx-trigger="load"
+         hx-swap="outerHTML">
+      <div class="s006-skel s006-skel--text" aria-hidden="true"></div>
+      <div class="s006-skel s006-skel--line" aria-hidden="true"></div>
+      <div class="s006-skel s006-skel--line" aria-hidden="true"></div>
+      <p class="s006-meta sr-only">板を読み込んでいます</p>
     </div>
   </div>
 {% endblock %}

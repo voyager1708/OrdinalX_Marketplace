@@ -11,14 +11,14 @@ Django 側も `market/` 付きで受ける。実パスは `/market/api/v1/...`�
 
 from django.conf import settings
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
 
-from yp_marketplace.views import MarketIndexView
+from yp_marketplace.views import MarketBoardFragmentView, MarketIndexView
 
 _admin_url = settings.ADMIN_URL if settings.ADMIN_URL.endswith('/') else settings.ADMIN_URL + '/'
 
@@ -31,9 +31,15 @@ urlpatterns = [
     path('market/api/v1/schema/redoc/',
          SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
+    # 板の公開 EP（§6）。Phase 1 は読み取りだけで、書き込み（draft / submit）は
+    # Phase 2 で端末の意図検証と一緒に入れる。
+    path('market/api/v1/', include(('listing.urls', 'market'), namespace='market')),
+
     # 市場の画面。API より後に置く（/market/ の prefix が API と重なるため、
     # 先に置くと longest prefix ではなく定義順で拾ってしまう）
     path('market/', MarketIndexView.as_view(), name='index'),
+    # 板の中身。骨組みを先に返して HTMX が取りに来る（S012 §8.1 の画面の作法）
+    path('market/board', MarketBoardFragmentView.as_view(), name='board-fragment'),
 ]
 
 # 板・作品・購入の API（§6）は Phase 1 以降でここに足す。

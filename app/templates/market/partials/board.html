@@ -1,0 +1,35 @@
+{% comment %}
+板の中身（HTMX が取りに来るフラグメント）。
+
+骨格は s006 の語彙だけで書く。1 行は「作品名 / サークル / 価格」で、
+**価格は金額扱い**なのでネオモルフィズムを掛けず高コントラストで出す
+（S012 §8.1 の最後、Specification.md §15）。
+{% endcomment %}
+{% load humanize %}
+{% if is_empty %}
+  <div class="s006-empty">
+    <div class="s006-empty__icon"><i class="bi bi-shop" aria-hidden="true"></i></div>
+    <p class="s006-empty__title">まだ出品がありません</p>
+    <p class="s006-empty__body">
+      最初の出品が出るとここに並びます。出品は NFT をロックスクリプトへ移して行い、
+      購入は 1 本の取引で NFT と代金が同時に動きます。
+    </p>
+  </div>
+{% else %}
+  <ul class="s006-txlist" role="list">
+    {% for listing in listings %}
+      <li class="s006-tx">
+        <div class="s006-tx__icon"><i class="bi bi-image" aria-hidden="true"></i></div>
+        <div class="s006-tx__body">
+          <p class="s006-tx__title">{{ listing.work.title|default:listing.nft_origin|truncatechars:38 }}</p>
+          <p class="s006-meta">
+            {{ listing.work.vendor.name|default:"—" }}
+            {% if listing.edition %}・#{{ listing.edition.serial }}/{{ listing.edition.total }}{% endif %}
+          </p>
+        </div>
+        {# 価格は金額扱い。桁区切りを入れ、ネオモルフィズムを掛けず高コントラストで出す #}
+        <p class="s006-tx__amount s006-num">{{ listing.price_satoshis|intcomma }} <span class="s006-sub">sat</span></p>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}

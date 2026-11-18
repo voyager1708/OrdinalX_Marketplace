@@ -8,6 +8,9 @@ python-dotenv==0.20.0
 # WSGI サーバ（BE と同じピン。コンテナの command から呼ぶ）
 gunicorn==22.0.0
 
+# BE へのイントロスペクション（§7）。FE・BE と同じピン
+requests==2.32.3
+
 # Postgres（§2「専用 DB yp_market / yp_market_dev。yp_dev_db は共有しない」）
 psycopg==3.1.18
 psycopg-binary==3.1.18

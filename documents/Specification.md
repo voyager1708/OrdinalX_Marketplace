@@ -221,6 +221,22 @@ market:  GET {BE_API_BASE_URL}/api/v1/user/info に同じ Bearer を中継
    └ 結果は (jti, exp) 単位で 60 秒キャッシュ
 ```
 
+> ⚠ **実測との食い違い（2026-11-18）**: 上の図は「200 → principal = `data.id`」と
+> 書いているが、**BE の `/api/v1/user/info` は `id` を返さない**（返すのは
+> `email` / `paymail` / `profile_picture` / `username` / `profile_picture_data`。
+> FE の `context_processors.py` も同じ事実に当たっている）。
+>
+> そこで principal は**同じトークンの `user_id` クレーム**から取る。署名は検証
+> しない（できない）が、**有効性は BE の 200 が担保している** — BE はその
+> トークンの `user_id` からユーザーを引いて 200 を返したのだから、同じトークンの
+> `user_id` は BE が認めた本人に他ならない。BE が `id` を返すようになったら
+> そちらを優先する（実装は `yp_marketplace/auth.py` の `_principal_id`）。
+>
+> なお BE の `User.id` は **AutoField（int）**で、UUID ではない（モデルの
+> docstring と FE のコメントは古い）。`*_principal` を整数で持つ §5 の形は正しい。
+> また `/user/info` は `account_type` も返さないので、投影の口座種別は**空＝不明**
+> のままになる（キットは不明ならラベルを出さない作りなので画面は崩れない）。
+
 - **JWT をローカル検証しない**。BE の `SIMPLE_JWT` は HS256 ＝署名鍵が `SECRET_KEY` なので、
   market に配ると market が任意ユーザーのトークンを偽造できる（BE の信頼境界を壊す）。
 - 将来 BE が RS256 + JWKS を出せるようになったら切り替えられるよう、`TokenVerifier`
@@ -693,8 +709,15 @@ screenshot で確認した。P0-10 では bsv-sdk を BE と同じ git 版（`57
 `.so` が `./app` の bind mount で覆われる対処で、bsv-sdk の `.so` は
 site-packages にあり mount の外にいる。ツリー内に拡張を足したときに入れる。
 
-**これで Phase 0（P0-1〜P0-10）は完了**。次は Spike 0（OrdLock の実地検証）か
-Phase 1（公開一覧とイントロスペクション）。
+**Phase 0（P0-1〜P0-10）は完了**。
+
+**Phase 1（2026-11-18）**: 公開 EP 4 本（`listings` / `listings/{id}` /
+`nft/{origin}/thumb` / `stats`）とイントロスペクション（§7）を入れ、板の画面を
+それに繋いだ。**書き込みは無い**（draft / submit は Phase 2 で端末の意図検証と
+一緒に入れる）。問い合わせは `listing/queries.py` の 1 箇所に閉じ込め、
+**MARKET_ENV の絞り込みと運営 blocklist が view から漏れない**形にした。
+ダミーの出品は `manage.py seed_market`（MARKET_ENV=dev でしか動かない）。
+次は **Spike 0**（OrdLock の実地検証）。
 
 ## 17. 上位文書との対応
 

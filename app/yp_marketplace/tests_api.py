@@ -116,9 +116,17 @@ class BoundaryTests(SimpleTestCase):
         self.assertNotIn('vault', settings.INSTALLED_APPS)
 
     def test_market_api_is_sessionless(self):
-        # §2: セッションレス。Cookie 認証を足すとウォレットの Cookie に乗ってしまう
+        """
+        §2: セッションレス。認証は BE へのイントロスペクション（§7）だけで、
+        Cookie を見る認証を足さない（同一オリジンなのでウォレットの Cookie が
+        そのまま届いてしまう）。
+        """
         from django.conf import settings
-        self.assertEqual(tuple(settings.REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES']), ())
+        classes = tuple(settings.REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'])
+        self.assertEqual(
+            classes, ('yp_marketplace.auth.BearerIntrospectionAuthentication',))
+        for cookie_auth in ('SessionAuthentication', 'BasicAuthentication'):
+            self.assertNotIn(cookie_auth, ' '.join(classes))
 
     @override_settings(ADMIN_URL='market/admin/')
     def test_session_cookie_is_scoped_to_market(self):

@@ -63,6 +63,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # 金額の桁区切り（intcomma）。価格は**金額扱い**で出す（S012 §8.1 の最後）
+    'django.contrib.humanize',
 
     'rest_framework',
     'drf_spectacular',
@@ -147,10 +149,12 @@ REST_FRAMEWORK = {
     # FE の unwrap() がそのまま通ることが契約（§15 の「契約」テスト）。
     'EXCEPTION_HANDLER': 'yp_marketplace.api.exception_handler.exception_handler',
 
-    # セッションレス（§2）。認証は BE への イントロスペクション（§7）で、
-    # Phase 1 で TokenVerifier 実装を足すまで認証クラスは空のまま。
-    # Cookie 認証は入れない（同一オリジンでウォレットの Cookie に乗らない）。
-    'DEFAULT_AUTHENTICATION_CLASSES': (),
+    # セッションレス（§2）。認証は BE へのイントロスペクション（§7）だけで、
+    # Cookie 認証は入れない（同一オリジンなのでウォレットの Cookie に乗ってしまう）。
+    # 公開 EP は authentication_classes = [] で明示的に外す。
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'yp_marketplace.auth.BearerIntrospectionAuthentication',
+    ),
 
     # 既定は fail-closed。公開 EP（§6 の「認証不要」4 本）だけが
     # permission_classes = [AllowAny] で明示的に開ける。
