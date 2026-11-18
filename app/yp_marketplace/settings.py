@@ -252,6 +252,11 @@ MARKET_FEE_SCRIPT = (os.environ.get("MARKET_FEE_SCRIPT") or "").strip() or None
 MARKET_FEE_POLICY_DEFAULT = (os.environ.get("MARKET_FEE_POLICY_DEFAULT")
                              or "creator/prepaid_bsv").strip()
 
+# 市場の fee wallet（§12）。**鍵は env だけから**読み、コードにも DB にも埋めない。
+# キャンセルの手数料と本体チャンクの放送はここから出る（§10）。
+MARKET_FEE_WALLET_WIF = (os.environ.get("MARKET_FEE_WALLET_WIF") or "").strip()
+MARKET_FEE_WALLET_ADDRESS = (os.environ.get("MARKET_FEE_WALLET_ADDRESS") or "").strip()
+
 # 運営コストのガード（§10）
 MAX_FEE_SATOSHIS_PER_WORK = _env_int("MAX_FEE_SATOSHIS_PER_WORK", 5_000_000)
 MAX_SUBSIDY_SATOSHIS_PER_DAY = _env_int("MAX_SUBSIDY_SATOSHIS_PER_DAY", 5_000_000)

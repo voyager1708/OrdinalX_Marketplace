@@ -13,5 +13,9 @@ urlpatterns = [
     # 出品（認証必須・§6）。Phase 2
     path('listings/draft', views.ListingDraftAPIView.as_view(), name='listing-draft'),
     path('listings/submit', views.ListingSubmitAPIView.as_view(), name='listing-submit'),
+    path('listings/<int:listing_id>/cancel/draft',
+         views.ListingCancelDraftAPIView.as_view(), name='cancel-draft'),
+    path('listings/<int:listing_id>/cancel/submit',
+         views.ListingCancelSubmitAPIView.as_view(), name='cancel-submit'),
     path('me/listings', views.MyListingsAPIView.as_view(), name='my-listings'),
 ]

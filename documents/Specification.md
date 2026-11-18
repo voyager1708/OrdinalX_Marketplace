@@ -773,8 +773,17 @@ site-packages にあり mount の外にいる。ツリー内に拡張を足し�
 **submit は「発行した OrdLock へ 1 sat が載っている tx」以外を放送しない**
 （端末が market を信頼しないのと対称に、market も端末を信頼しない）。
 放送できても状態は `pending` までで、`active` にするのは reconcile が UTXO の
-未使用性を確かめてから。残りは**キャンセル**（`cancel/draft` / `cancel/submit`）と
-端末側の意図検証、そして BE 変更の本番反映。
+未使用性を確かめてから。**キャンセル**も入れた（`listings/{id}/cancel/draft` → 署名 → `cancel/submit`）。
+キャンセルは **market が自分で組む** — BE は OrdLock の UTXO を知らないので
+（出品時に `external` で記帳を飛ばしている）テンプレートを作れない。解錠は参照実装と
+同じ `<"ol2:cancel"> <sig> <pubkey> OP_1` で、**scriptCode は locking script 全体**
+（cancel 分岐は OP_CODESEPARATOR を実行しないので P2PKH と同じ署名でよい）。
+売り手の署名は `ALL|ANYONECANPAY` なので、**署名の後から市場が手数料入力を足せる**。
+手数料は市場の fee wallet 持ちで、足りなければ 503 で止める（§10）。
+submit は**ロックに焼き込まれた PKH と公開鍵を突き合わせてから**解錠する。
+
+残りは端末側の意図検証（キットに `verifyTemplate` 相当を足し、自分で組み直した
+OrdLock と完全一致しなければ署名しない）と、BE 変更の本番反映。
 
 > S010 の実装で分かったことが 2 つ。**記帳ガードは必須**だった（実物の OrdLock v2 から
 > BE の `get_address_from_locking_script()` が**売り手のアドレスを返す**。§5 の仮説が的中）。

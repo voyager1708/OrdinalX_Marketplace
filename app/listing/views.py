@@ -24,7 +24,7 @@ from listing.models import Listing, ListingStatus, PurchaseStatus
 from listing.queries import blocked_origins, sorted_listings, visible_listings
 from listing.serializers import ListingSerializer, StatsSerializer
 from yp_marketplace.api import ErrorCode, error, success
-from listing.services import listing_service
+from listing.services import cancel_service, listing_service
 from yp_marketplace.api.throttles import (
     MarketDraftRateThrottle,
     MarketPublicRateThrottle,
@@ -261,3 +261,36 @@ class MyListingsAPIView(AuthenticatedAPIView):
                 .select_related('work', 'edition')
                 .order_by('-created_at')[:DEFAULT_PAGE_SIZE])
         return success({'listings': ListingSerializer(rows, many=True).data})
+
+
+class ListingCancelDraftAPIView(AuthenticatedAPIView):
+    @extend_schema(summary='出品を取り下げる未署名 tx を作る', tags=['market'])
+    def post(self, request, listing_id: int):
+        body = request.data or {}
+        if not body.get('receive_script'):
+            return error('missing: receive_script', ErrorCode.MISSING_PARAMETER, 400)
+        data = cancel_service.create_cancel_draft(
+            principal=self.principal_id(request),
+            listing_id=listing_id,
+            receive_script=str(body['receive_script']),
+        )
+        return success(data)
+
+
+class ListingCancelSubmitAPIView(AuthenticatedAPIView):
+    throttle_classes = [MarketSubmitRateThrottle]
+
+    @extend_schema(summary='署名を受けて取り下げを放送する', tags=['market'])
+    def post(self, request, listing_id: int):
+        body = request.data or {}
+        missing = [k for k in ('template_id', 'signature', 'public_key')
+                   if not body.get(k)]
+        if missing:
+            return error(f'missing: {", ".join(missing)}', ErrorCode.MISSING_PARAMETER, 400)
+        data = cancel_service.submit_cancel(
+            principal=self.principal_id(request),
+            template_id=str(body['template_id']),
+            signature_hex=str(body['signature']),
+            public_key_hex=str(body['public_key']),
+        )
+        return success(data)
