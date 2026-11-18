@@ -126,7 +126,7 @@ OrdinalX_Marketplace/
     ├── chain/                        Edition / ContentPart / MintJob / Manifest
     ├── listing/                      Listing / TxTemplate / Purchase / SettlementJob / ListingEvent
     │                                 TakedownRequest / BlockedContent（§9.1）
-    ├── vault/                        CK の保管と所有権判定（**別プロセス・別 DB・別鍵**）
+    ├── vault/                        DEK（旧称 CK）の保管と所有権判定（**別プロセス・別 DB・別鍵**）
     └── templates/ static/            市場固有のみ。シェルとテーマは UI キットから
 ```
 
@@ -162,7 +162,7 @@ OrdinalX_Marketplace/
 | `product` | `WorkFeeLedger` | 作成手数料のポリシースナップショットと実費（YP 分 / market 分を**分けて**） |
 | `listing` | `TakedownRequest` | `claimant` / `target` / `kind` / `state` / `received_at` / `decided_at` / `decision`（申し立ての受付と判断。§9.1） |
 | `listing` | `BlockedContent` | `kind(nft_origin\|txid\|sha256)` / `value` / `reason` / `actor`（運営 blocklist。§9.1） |
-| `vault` | `KeyRevocation` | `work_id` / `reason` / `actor` / `created_at`（CK の恒久失効。解除は二人承認。§9.1） |
+| `vault` | `KeyRevocation` | `work_id` / `reason` / `actor` / `created_at`（DEK の恒久失効。解除は二人承認。§9.1）。**効くのは利用者と自社システムまで**で、`W` を渡した先のシステムには届かない（S009 §17.3） |
 | — | `NftCache` | `thumb` は長辺 512px WebP・1 件 50 KB 上限・**総量上限と LRU を最初から**（ディスクが残り僅か） |
 
 `Listing.status`: `draft → pending → active → (sold｜cancelled｜invalid)`
@@ -436,7 +436,8 @@ SettlementJob: created → paid → (delivering) → delivered → settled
 | シリアル | オンチェーンで不変にする。`comment` は上限 200 文字。`name` にも `#10/30`（`name` は BE が検証＝改竄不可） |
 | 正規性 | プロトコルでは強制されない。market が「コレクション親と同じ作成者の鍵から出ているか」を検証して**バッジ**を出す |
 | 暗号化 | AES-256-GCM（4 MB チャンクごと・AAD にチャンク番号）。**平文が存在するのはブラウザだけ**。**既定は暗号化**（`access=owner_only`）で、平文公開は人手審査の通過後のみ |
-| 鍵解放 | `vault` が**現在の所有者**を BE の `/user/nfts/info` で確認し、CK を購入者の公開鍵へ ECIES で再封。market の `Purchase` と突き合わせない（転売で権利が自動的に移る） |
+| 鍵解放 | **二層**（S009 §17 改訂 2026-11-18）。本体は DEK で 1 回だけ暗号化してチェーンに固定し、**DEK はシステムの鍵で封じた `W` として配る**。**DEK は利用者の端末に出さない**（復号はシステム側）。所有の確認は**チェーン上の現在地 + ordinal を握る鍵でのチャレンジ署名**で行い、BE の `/user/nfts/info` は自社利用者向けの速い経路としてのみ使う。転売で権利が自動的に移る点は変わらない |
+| 別システムへの移転 | 相手システムの公開鍵で `W_B`（約 182 B）を 1 つ作って渡すだけ。**本体も DEK も作り直さない**。利用者への失効は効くが、**鍵を渡したシステムは読み続けられる**ので、発行先は認定制にし、発行を `vault.KeyRelease` に残す（S009 §17.3） |
 | 完全性 | `sha256_plain` とチャンクごとの `sha256` を**オンチェーンの `subTypeData`** に置く。market が差し替えても検知できる |
 | プレビュー | 長辺 512px WebP・30 KB 以内を**作品 NFT の inscription 本体**に置く（**承認後**）。承認前は market のサムネキャッシュにだけ置く。プレビューは平文なので**唯一の恒久的な漏洩経路**になる |
 | 審査 | **inscribe の前に審査**。R-18・二次創作・平文公開・プレビューは人手審査必須。チャンク放送も承認後。審査者は CK を自分の鍵で開く（§9.1） |
