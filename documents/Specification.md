@@ -251,8 +251,32 @@ market:  GET {BE_API_BASE_URL}/api/v1/user/info に同じ Bearer を中継
 ### 8.1 決済方式 — OrdLock 型のオンチェーン・ロック
 
 売り手は ordinal を「**売り手へ指定額を払う出力を含む tx でしか解けない**」スクリプトへ移す。
-購入は 1 本の tx で NFT と代金が同時に動く（原子的）。参照実装は `js-1sat-ord` の `ordLock` で、
-これに合わせると**外部の 1Sat マーケットからも購入可能**になる。
+購入は 1 本の tx で NFT と代金が同時に動く（原子的）。これに合わせると**外部の 1Sat
+マーケットからも購入可能**になる。
+
+> ⚠ **Spike 0 の実測（2026-11-18）で参照実装が変わった。**
+>
+> 本書がここで挙げていた `js-1sat-ord` の `ordLock`（v1）は、**0.1.92（2026-09-11）で
+> 出品の作成が無効化**され、ライブラリ自体が引退した（既存の出品のキャンセルと購入だけ
+> 残る）。`lock()` を呼ぶと `ORDLOCK_CREATE_DISABLED` を投げる。つまり **v1 で新しい
+> 出品を作る手段は公式にはもう無い**。
+>
+> 維持されているのは後継の **1Sat SDK**（`b-open-io/1sat-sdk`）の
+> **`OrdLockV2Batch`**（`@1sat/templates` の `ordlockV2`）。市場はこちらを使う。
+> 実装は [`app/listing/ordlock/`](../app/listing/ordlock/)、公式ベクタとの
+> バイト一致は `listing/tests_ordlock.py`。
+
+**v2 の形**（Spike 0 ②: 公式ベクタと 526 バイト完全一致を確認済み）
+
+```
+locking script = fillSlots(テンプレート 472B, [seller PKH(20B), payOutput])
+payOutput      = 8 バイト LE の satoshi || varint || 支払い先 script
+```
+
+- 「誰に・いくら払うか」が**ロックに焼き込まれる**ので価格は改竄不能（§14-3）
+- テンプレートは Rúnar コンパイラの出力をそのまま vendor し、SHA-256
+  `629c4c60…a8b7` で毎回照合する（1 バイト違うと外部から見えなくなる）
+- 契約の後ろに続くデータ（MAP など）は許容される
 
 ```
 List   : [in] ordinal 1sat (売り手 P2PKH)      → [out0] ordinal 1sat (OrdLock{payout, price})
@@ -293,6 +317,27 @@ market → BE    POST /api/v1/nc/transaction/broadcast/ → ARC
 **前提**: S010 の `recipient_locking_script` が BE に入っていること（§1 のとおり未実装）。
 入るまで出品は実装できない。完全無改造の代替（S009 §6.3）は手数料が売り手の自己負担になり、
 残高 0 の NC ユーザーが**出品できなくなる**ので採らない。
+
+### 8.2-b まとめ買いの可否（Spike 0 ④ の答え: **できる**）
+
+v2 は支払い出力を **位置で** 検証する。出品の**入力 i** に対して **出力 i** が、
+ロックに焼き込まれた payout と**バイト単位で一致**していなければならない
+（`SIGHASH_SINGLE|ANYONECANPAY` が入力 i と出力 i を結び付ける）。
+
+そのため **1 本の tx に複数の出品を載せられる**（契約名も `OrdLockV2Batch`）。
+ただし出力の並びは自由ではない:
+
+```
+入力   : 前払い m 本 → 出品 n 本 → 手数料ぶん（出品より後ろ）
+出力 0..m-1   : 前払いの枠。1 枠が釣り（Σ前払い − Σpayout）、残りは 0 sat の OP_FALSE OP_RETURN
+出力 m..m+n-1 : 各出品の payout（出品の入力と同じ番号に来る）
+出力 m+n..    : 買い手の受け取り（各 1 sat。first-sat 順で ordinal が乗る）
+お釣り        : 上の受け取りより**後ろ**（前に置くと sat の並びがずれる）
+```
+
+実装は `listing.ordlock.plan_purchase`。v1 は payout を**出力 0 固定**で見ていたので
+1 取引に 1 件しか載らなかった（S009 §19 の「まとめ買いは MVP 外」はこの制約が前提
+だった）。v2 では**制約ではなくなった**ので、カートの扱いは Phase 4 で見直せる。
 
 ### 8.3 購入（Buy）・キャンセル（Cancel）— market が自分で組む
 
@@ -717,7 +762,16 @@ site-packages にあり mount の外にいる。ツリー内に拡張を足し�
 一緒に入れる）。問い合わせは `listing/queries.py` の 1 箇所に閉じ込め、
 **MARKET_ENV の絞り込みと運営 blocklist が view から漏れない**形にした。
 ダミーの出品は `manage.py seed_market`（MARKET_ENV=dev でしか動かない）。
-次は **Spike 0**（OrdLock の実地検証）。
+**Spike 0（2026-11-18・チェーンに出さずに判定できる 2 件）**
+
+| # | 問い | 答え |
+|---|---|---|
+| ② | OrdLock script の Python 実装と 1Sat 互換 | **一致**。ただし**参照実装が v1 → v2 に変わっていた**（§8.1 の警告）。公式ベクタと 526 バイト完全一致、decode も往復する |
+| ④ | payout を「位置で」見るか「含まれているか」で見るか | **位置**（入力 i ↔ 出力 i）。**まとめ買いはできる**が出力の並びが決まる（§8.2-b） |
+
+残りの ①（BE の recovery が OrdLock 経由の ordinal を再紐付けできるか）と
+③（ARC の `maxtxsizepolicy` とデータ出力の受理可否）は**実チェーンに少額を流す**
+必要があるので未実施。
 
 ## 17. 上位文書との対応
 
