@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import timedelta
 from typing import Any, Dict, Optional
@@ -55,14 +56,35 @@ def _hash160(raw: bytes) -> bytes:
 
 def tx_fingerprint(inputs: Any, outputs: Any) -> str:
     """
-    テンプレートの同一性。端末の `txFingerprint` と**同じ材料**から作る
-    （キットの CONTRACT.md §4）。出した形と違うものを放送させないための印。
+    テンプレートの同一性。
+
+    **BE と端末（キットの `txFingerprint`）と同じ正準形**を使う:
+    `{"inputs":[{txid,vout,sats}],"outputs":[{sats,lock}]}` の SHA-256。
+    3 者で式が違うと「同じ名前で中身が違う指紋」になり、突き合わせが
+    意味を失う（BE: `compute_tx_fingerprint` / キット: `nc-send.js`）。
     """
-    material = repr([
-        [(i.get('txid'), i.get('output_index'), i.get('satoshis')) for i in (inputs or [])],
-        [(o.get('locking_script'), o.get('satoshis')) for o in (outputs or [])],
-    ]).encode()
-    return hashlib.sha256(material).hexdigest()
+    canonical = json.dumps(
+        {
+            'inputs': [
+                {
+                    'txid': i.get('txid'),
+                    'vout': int(i.get('output_index') or 0),
+                    'sats': int(i.get('satoshis') or 0),
+                }
+                for i in (inputs or [])
+            ],
+            'outputs': [
+                {
+                    'sats': int(o.get('satoshis') or 0),
+                    'lock': str(o.get('locking_script')
+                                or o.get('locking_script_hex') or '').lower(),
+                }
+                for o in (outputs or [])
+            ],
+        },
+        separators=(',', ':'),
+    )
+    return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
 
 def _assert_allowed_in_dev(principal: int) -> None:
