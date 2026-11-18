@@ -669,7 +669,11 @@ nginx の location 2 本と nav を外すと `/market/` が 404 になり、FE �
 `SealedKey` / `KeyRelease` / `AgeVerification` も同じ migration に入れた
 （§14-12「あとで足すと事故の当日に手が無い」）。P0-5 ではキットを
 `kit-v1.1` として切り出し、`vendor/wallet-ui` の submodule で固定した。
-次は **P0-6**（市場の 1 画面を `wallet-base.html` extends + s006 骨格クラスだけで描く）。
+P0-6 では `/market/` をキットのシェルの上に s006 の骨格クラスだけで描き、
+`/view/dashboard` との screenshot 比較でヘッダがピクセル一致、ボトムタブも
+現在地の点灯以外は一致することを確認した（`tools/shell_diff.py` で再現できる）。
+途中でキットに 3 つ穴が見つかり、v1.1〜v1.3 で塞いだ（シェルの include、
+シェルが読む JS、シェルのレイアウト CSS）。次は **P0-7**（compose）。
 
 ## 17. 上位文書との対応
 

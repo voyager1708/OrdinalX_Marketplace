@@ -18,6 +18,8 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from yp_marketplace.views import MarketIndexView
+
 _admin_url = settings.ADMIN_URL if settings.ADMIN_URL.endswith('/') else settings.ADMIN_URL + '/'
 
 urlpatterns = [
@@ -28,7 +30,11 @@ urlpatterns = [
          SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('market/api/v1/schema/redoc/',
          SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # 市場の画面。API より後に置く（/market/ の prefix が API と重なるため、
+    # 先に置くと longest prefix ではなく定義順で拾ってしまう）
+    path('market/', MarketIndexView.as_view(), name='index'),
 ]
 
-# 板・作品・購入の API（§6）と市場の画面は Phase 1 以降でここに足す。
+# 板・作品・購入の API（§6）は Phase 1 以降でここに足す。
 # Phase 0 の時点では URL を予約せず、view と一緒に入れる。

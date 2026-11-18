@@ -59,7 +59,7 @@ vendor/wallet-ui/                       FE リポジトリの submodule（タグ
         CONTRACT.md                     契約の全文（**先に読む**）
 ```
 
-- 現在固定している版: **kit-v1.1**
+- 現在固定している版: **kit-v1.3**
 - 版を上げるときは `cd vendor/wallet-ui && git fetch --tags && git checkout kit-vN`
   してからコミットする（submodule の指し先がそのまま版の記録になる）
 - 契約（鍵の置き場・暗号パラメータ・MAP の並び・シェルの context）は
@@ -70,6 +70,41 @@ vendor/wallet-ui/                       FE リポジトリの submodule（タグ
 > ⚠ Tailwind は preset の `content` をマージしない。市場の画面を作るとき
 > （P0-6）は `...kit.content` を**展開して**足す。忘れるとキットのクラスだけが
 > purge され、HTML は正しいのに CSS だけが静かに壊れる。
+
+## 静的資産のビルド
+
+市場の CSS と JS は、版を固定したキットのソースから**市場が自分で**作る
+（実行時にウォレットのビルド成果物は読まない）。
+
+```bash
+cd app && npm install        # 初回のみ
+cd app && npm run build      # static/css/app.css と static/js/*.js を作る
+```
+
+- `build:css` … キットの s006（骨格）+ gaudi（スキン）+ Tailwind utilities
+- `build:js` … キットの backend-status / nc-auth / gaudi / gaudi-nav / localtime を
+  esbuild でバンドル（署名コアは Phase 2 で足す）、`css/pwa.css` をコピー
+
+ビルド結果（`app/static/css/app.css` と `app/static/js/*.js`）は**リポジトリに
+追跡する**。本番の反映は bind mount + restart で build を挟まない運用（FE・BE と
+同じ）なので、成果物が無いと見た目が出ない。**キットの版を上げたら必ず
+`npm run build` して一緒にコミットする。**
+
+## 見た目の確認（シェルが一致しているか）
+
+ウォレットと市場でシェルが食い違ったら**それはバグ**（S012 §8.1）。常駐サーバを
+立てずに撮り比べられる:
+
+```bash
+# 市場側の HTML（静的参照を file:// に書き換える）
+/mnt/extra/venv_marketplace/bin/python tools/render_market.py /tmp/market.html
+
+# ウォレット側の /view/dashboard も同じ作法で /tmp/wallet.html に出してから
+/mnt/extra/venv/bin/python tools/shell_diff.py /tmp/wallet.html /tmp/market.html
+```
+
+ヘッダは 1 ピクセルも違わないこと、ボトムタブは**現在地の点灯以外**は
+一致することを見る。
 
 ## 動かす
 
@@ -87,6 +122,7 @@ vendor/wallet-ui/                       FE リポジトリの submodule（タグ
 
 | URL | 中身 |
 | --- | --- |
+| `/market/` | 市場の画面（板の入口。ログイン前でも見せる） |
 | `/market/admin/` | admin（`ADMIN_URL` で変えられる。nginx 側でも遮断する） |
 | `/market/api/v1/schema/` | OpenAPI スキーマ |
 | `/market/api/v1/schema/swagger-ui/` | Swagger UI |

@@ -287,3 +287,7 @@ env.local
 /app/market-static/
 # 審査待ち暗号文の staging（1 作品最大 500MB。Specification.md §9.1）
 /app/staging/
+# 市場の静的資産のビルド出力は **追跡する**。本番の反映は bind mount + restart で
+# build を挟まない運用（FE・BE と同じ）なので、成果物が無いと見た目が出ない。
+# キットの版を上げたら `cd app && npm run build` を忘れずに。
+/app/node_modules/

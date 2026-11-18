@@ -306,10 +306,23 @@ USE_TZ = True
 STATIC_URL = os.environ.get("STATIC_URL") or '/market-static/'
 STATIC_ROOT = os.environ.get("STATIC_ROOT") or (BASE_DIR / 'market-static')
 
-# キットの CSS（骨格 s006 とスキン gaudi）。utilities を含む最終 CSS は
-# 利用側で Tailwind を通して作る（キットの CONTRACT.md §6.1。preset の content を
-# **展開して**足す。忘れるとキットのクラスだけ purge されて静かに壊れる）。
-STATICFILES_DIRS = [WALLET_KIT_DIR / 'css'] if (WALLET_KIT_DIR / 'css').exists() else []
+# 静的ファイルの出どころは 3 つ（キットの CONTRACT.md §7）。
+#
+# 1. 市場が自分でビルドしたもの（app/static）— css/app.css と js/*.js。
+#    入力は版を固定したキットのソースで、`npm run build` で作る。
+#    **実行時にウォレットのビルド成果物は読まない**（S009 §15 の禁止事項 2）
+# 2. ウォレットと共有する vendored 資産（テーマ・アイコンフォント・ロゴ・
+#    htmx / preline / swiper / popper）。submodule の中の static から
+#    prefix を限って拾う。版は submodule の指し先で固定される
+# 3. それ以外は拾わない（ウォレットのアプリ用バンドルを市場から配らない）
+_WALLET_STATIC = WALLET_KIT_DIR.parent.parent / 'static'
+
+STATICFILES_DIRS = [BASE_DIR / 'static']
+if _WALLET_STATIC.is_dir():
+    STATICFILES_DIRS += [
+        ('assets', _WALLET_STATIC / 'assets'),
+        ('js/libs', _WALLET_STATIC / 'js/libs'),
+    ]
 
 
 # =============================================================================

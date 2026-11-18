@@ -20,6 +20,7 @@ DATABASES = {
 }
 
 # テストの前提を env に左右させない
+ALLOWED_HOSTS = ['testserver', '127.0.0.1', 'localhost']
 MARKET_ENV = 'dev'
 DEBUG = False
 SECRET_KEY = 'test-only-key'

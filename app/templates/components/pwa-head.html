@@ -1,0 +1,15 @@
+{% load static %}
+{% comment %}
+キットの `components/pwa-head.html` を**市場側で上書き**する（TEMPLATES の DIRS で
+市場が先にあるため）。
+
+市場は **Service Worker を登録しない**（Specification.md §13.2）。ウォレットの
+ルートスコープ SW に乗るので、manifest も splash も市場からは出さない。
+
+ただし `css/pwa.css` は**シェルのレイアウト**（safe-area・.app-header・
+ボトムタブの寸法）なので読む。シェルは app.css より先にこれを読む前提で、
+順序を変えると寸法が崩れる（キットの CONTRACT.md §7）。
+{% endcomment %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#111827"/>
+<link rel="stylesheet" href="{% static 'css/pwa.css' %}">

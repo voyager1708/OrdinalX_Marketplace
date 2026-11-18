@@ -1,0 +1,40 @@
+{% extends "components/wallet-base.html" %}
+{% comment %}
+市場の最初の画面（Specification.md §16 の P0-6）。
+
+ここで確かめているのは機能ではなく**土台**:
+  - キットのシェル（wallet-base）を別プロジェクトから extends できる
+  - 中身は s006 の骨格クラスだけで書ける（市場固有の CSS を足さない）
+  - 結果がガウディの見た目になる（スキンは骨格クラスを再スキンするので、
+    骨格の語彙で書いてさえいれば自動で揃う）
+
+シェルがヘッダ・サイドバー・ボトムタブまで出すので、画面側は content だけ。
+板の中身は Phase 1 で公開一覧 API（/market/api/v1/listings）に繋ぐ。
+いまは空の板をそのまま空状態として出す（S006 §4-4 アイコン + 見出し + 次の一手）。
+{% endcomment %}
+
+{% block content %}
+  <div class="s006-card sm:max-w-[500px] mx-auto mt-10 s006-fade-in">
+    {# カードの冠。ダッシュボードと同じ作法で主題の始まりを示す #}
+    <div class="gaudi-mosaic -mt-1 mb-5" aria-hidden="true"></div>
+
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p class="s006-eyebrow">Marketplace</p>
+        <h1 class="s006-sub font-semibold">オンチェーンの作品</h1>
+      </div>
+      <a href="{{ kit_urls.dashboard }}" class="s006-tap rounded-full" aria-label="Wallet">
+        <i class="bi bi-wallet2 text-xl" aria-hidden="true"></i>
+      </a>
+    </div>
+
+    <div class="s006-empty">
+      <div class="s006-empty__icon"><i class="bi bi-shop" aria-hidden="true"></i></div>
+      <p class="s006-empty__title">まだ出品がありません</p>
+      <p class="s006-empty__body">
+        最初の出品が出るとここに並びます。出品は NFT をロックスクリプトへ移して行い、
+        購入は 1 本の取引で NFT と代金が同時に動きます。
+      </p>
+    </div>
+  </div>
+{% endblock %}

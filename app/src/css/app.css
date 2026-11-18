@@ -1,0 +1,10 @@
+/* 市場の CSS。骨格（s006）とスキン（ガウディ）は UI キットのものを**そのまま**使う。
+   市場固有の CSS はレイアウトの都合だけに限る（S012 §15「見た目の食い違いは
+   選択ではなくバグ」）。部品が必要になったらキット側に足す。 */
+@import '../../../vendor/wallet-ui/app/packages/wallet-kit/css/s006.css';
+/* ガウディ層は s006 の骨格クラスを再スキンするので、必ず s006 の後。 */
+@import '../../../vendor/wallet-ui/app/packages/wallet-kit/css/gaudi.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

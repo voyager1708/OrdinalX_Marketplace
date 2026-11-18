@@ -1,0 +1,197 @@
+/* PWA safe-area support (010_PWA_IOS_PLAN §5, §10 Phase 1).
+   Effective only with viewport-fit=cover (see components/pwa-head.html);
+   env() resolves to 0 on non-notch devices and desktop. */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Keep the fixed header clear of the notch / Dynamic Island. */
+.app-header {
+  padding-top: var(--safe-top);
+}
+
+/* Keep page content clear of the home indicator and rounded corners. */
+.page {
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Standalone (installed) mode: no browser chrome, avoid accidental
+   pull-to-refresh while scrolling wallet lists. */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   インストール導線（010_PWA_IOS_PLAN §5 / §10 Phase 4）。
+   DOM は src/js/install-hint.js が body 直下に差し込む（login-base のみ）。
+   Chromium は 1 タップ（beforeinstallprompt）、iOS は API が無く案内だけ:
+     .a2hs--bottom     iPhone Safari — 共有は画面下ツールバーの中央（矢印は下向き）
+     .a2hs--top-right  iPad Safari   — 共有は上部ツールバーの右（矢印は上向き）
+     .a2hs--action     Chromium      — 自前の「追加する」ボタン。矢印なし
+   色は gaudi の --g-* を借りる（.dark でも自動で追従する）。app.css を読まない
+   文脈でも壊れないよう、すべてフォールバック値つきで参照する。
+   --------------------------------------------------------------------------- */
+
+.a2hs {
+  position: fixed;
+  z-index: 65;                 /* タブバー(60)より上、モーダル(70)より下 */
+  width: min(21rem, calc(100vw - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  opacity: 0;
+  transform: translateY(.5rem);
+  transition: opacity .28s ease, transform .28s ease;
+}
+
+.a2hs.is-shown {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* iPhone: 共有ボタンはビューポートの下（ブラウザのツールバー内）にあるので、
+   シートを最下部に寄せ、矢印は画面外の共有ボタンへ向けて下を指す。 */
+.a2hs--bottom {
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + .5rem);
+  margin-left: calc(min(21rem, 100vw - 1.5rem) / -2);
+}
+
+/* Chromium（Android/デスクトップ）: beforeinstallprompt を握った 1 タップ導線。
+   押す先は画面外のブラウザ UI ではなく自前のボタンなので、矢印は出さない。 */
+.a2hs--action {
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + .75rem);
+  margin-left: calc(min(21rem, 100vw - 1.5rem) / -2);
+}
+
+/* iPad: 共有ボタンは上部。矢印を上（DOM 順の逆）に置いて右端へ寄せる。 */
+.a2hs--top-right {
+  right: calc(var(--safe-right) + .75rem);
+  top: calc(var(--safe-top) + .5rem);
+  flex-direction: column-reverse;
+  transform: translateY(-.5rem);
+}
+
+.a2hs--top-right.is-shown { transform: translateY(0); }
+
+.a2hs__sheet {
+  position: relative;
+  padding: .9rem 2.25rem .9rem 1rem;
+  border-radius: .9rem;
+  background: rgb(var(--g-surface, 252 249 243));
+  color: rgb(var(--g-ink, 44 33 25));
+  border: 1px solid rgb(var(--g-grout, 214 199 176) / .8);
+  box-shadow: 0 18px 40px -20px rgb(var(--g-ink, 44 33 25) / .45);
+}
+
+.a2hs__close {
+  position: absolute;
+  top: .35rem;
+  inset-inline-end: .35rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  line-height: 1;
+  font-size: 1.15rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgb(var(--g-ink-soft, 124 106 90));
+}
+
+.a2hs__title {
+  margin: 0 0 .4rem;
+  font-size: .95rem;
+  font-weight: 700;
+}
+
+.a2hs__body,
+.a2hs__step {
+  margin: 0 0 .25rem;
+  font-size: .85rem;
+  line-height: 1.5;
+}
+
+/* 文中に置く共有アイコン。行の中で天地中央に見えるように少しだけ持ち上げる */
+.a2hs__icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -.25em;
+  margin: 0 .15em;
+  color: rgb(var(--g-blue, 22 70 110));
+}
+
+.a2hs__note {
+  margin: .5rem 0 0;
+  font-size: .75rem;
+  line-height: 1.5;
+  color: rgb(var(--g-ink-soft, 124 106 90));
+}
+
+.a2hs__action {
+  margin-top: .6rem;
+  padding: .45rem .9rem;
+  font-size: .8rem;
+  font-weight: 600;
+  border: 0;
+  border-radius: .6rem;
+  background: rgb(var(--g-terracotta, 181 74 40));
+  color: #fff;
+}
+
+/* コピー退避用の textarea。見せずに select() だけできればよい */
+.a2hs__clip {
+  position: fixed;
+  top: 0;
+  inset-inline-start: -9999px;
+  opacity: 0;
+}
+
+.a2hs__arrow {
+  width: 0;
+  height: 0;
+  border-left: .5rem solid transparent;
+  border-right: .5rem solid transparent;
+}
+
+.a2hs--bottom .a2hs__arrow {
+  align-self: center;
+  border-top: .6rem solid rgb(var(--g-surface, 252 249 243));
+  animation: a2hs-nudge-down 1.7s ease-in-out infinite;
+}
+
+.a2hs--top-right .a2hs__arrow {
+  align-self: flex-end;
+  margin-inline-end: 1.1rem;
+  border-bottom: .6rem solid rgb(var(--g-surface, 252 249 243));
+  animation: a2hs-nudge-up 1.7s ease-in-out infinite;
+}
+
+@keyframes a2hs-nudge-down {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(.28rem); }
+}
+
+@keyframes a2hs-nudge-up {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-.28rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a2hs { transition: none; }
+  .a2hs__arrow { animation: none; }
+}
+
+/* 追加済み（standalone）なら万一 DOM が入っても出さない。JS 側の保険 */
+@media (display-mode: standalone) {
+  .a2hs { display: none; }
+}

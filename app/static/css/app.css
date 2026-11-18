@@ -1,0 +1,2763 @@
+/* 市場の CSS。骨格（s006）とスキン（ガウディ）は UI キットのものを**そのまま**使う。
+   市場固有の CSS はレイアウトの都合だけに限る（S012 §15「見た目の食い違いは
+   選択ではなくバグ」）。部品が必要になったらキット側に足す。 *//* ============================================================================
+ * S006 デザイン層 — UX デザイン仕様書 (documents/S006_ux_design_spec.md) の
+ * 「共通デザイン原則」(§4) を、画面をまたいで使える最小のクラス群にしたもの。
+ *
+ * 方針:
+ *  - テーマの CSS 変数 (--primary-rgb / --default-text-color …) の上に載せる。
+ *    ライト/ダークはテーマ側の `.dark` に追従するので個別対応を書かない。
+ *  - テーマが持っていないもの（任意不透明度の primary など）だけ自前で定義する。
+ *  - 動きは prefers-reduced-motion で必ず止める (§3 アクセシビリティ)。
+ * ========================================================================== */
+
+:root {
+  --s006-surface: 255 255 255;   /* カードの地 */
+  --s006-ground-a: 246 247 251;  /* ページの地（上） */
+  --s006-ground-b: 240 241 247;  /* ページの地（下） */
+  --s006-line: 233 235 241;      /* 罫線・境界 */
+  --s006-muted: 108 114 128;     /* 補助テキスト */
+  --s006-radius: 1rem;
+}
+
+.dark {
+  --s006-surface: 37 39 41;
+  --s006-ground-a: 22 24 26;
+  --s006-ground-b: 26 28 30;
+  --s006-line: 55 58 62;
+  --s006-muted: 156 163 175;
+}
+
+/* --- 地 (§2「地は落ち着いたニュートラル」) --------------------------------
+ * 旧 Vanta WAVES(WebGL) の置き換え。静的なので three.js 631KB が不要になり、
+ * オフラインでも描画でき、常時 GPU を回さない。 */
+#s006-ground {
+  background: linear-gradient(180deg,
+              rgb(var(--s006-ground-a)) 0%,
+              rgb(var(--s006-ground-b)) 100%);
+}
+
+/* --- 統一カード (§4-2) ----------------------------------------------------
+ * 残高カード / 取引カード / NFT カードが同じ角丸・影・余白・階層を共有する。 */
+.s006-card {
+  background-color: rgb(var(--s006-surface));
+  border: 1px solid rgb(var(--s006-line));
+  border-radius: var(--s006-radius);
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -14px rgb(0 0 0 / .12);
+}
+
+.s006-card--flush { padding: 0; overflow: hidden; }
+
+/* --- タイポ階層 (§2 タイポグラフィ) --------------------------------------- */
+.s006-eyebrow {
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgb(var(--s006-muted));
+}
+
+/* 金額は主役。桁が揃うよう等幅数字にする */
+.s006-hero {
+  font-size: clamp(2rem, 9vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--default-text-color));
+}
+
+.s006-sub  { font-size: .875rem; color: rgb(var(--s006-muted)); }
+.s006-meta { font-size: .75rem;  color: rgb(var(--s006-muted)); }
+.s006-num  { font-variant-numeric: tabular-nums; }
+
+/* --- タッチターゲット (§4-3 / WCAG 2.5.5) --------------------------------- */
+.s006-tap {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- 主要 CTA (§4-3「大きく明快に」) -------------------------------------- */
+.s006-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  min-height: 52px;
+  padding: 0 1.25rem;
+  border-radius: .875rem;
+  font-size: .9375rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: transform .12s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.s006-cta:active { transform: scale(.98); }
+
+.s006-cta--primary {
+  background-color: rgb(var(--primary-rgb));
+  color: #fff;
+  box-shadow: 0 6px 16px -8px rgba(var(--primary-rgb), .8);
+}
+.s006-cta--primary:hover { background-color: rgba(var(--primary-rgb), .9); }
+
+.s006-cta--ghost {
+  background-color: rgba(var(--primary-rgb), .08);
+  color: rgb(var(--primary-rgb));
+  border-color: rgba(var(--primary-rgb), .18);
+}
+.s006-cta--ghost:hover { background-color: rgba(var(--primary-rgb), .14); }
+
+/* --- スケルトン (§4-4「非同期状態を必ず可視化」) --------------------------- */
+.s006-skel {
+  border-radius: .5rem;
+  background-color: rgb(var(--s006-line));
+  background-image: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, .55) 50%,
+      rgba(255, 255, 255, 0) 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: s006-shimmer 1.4s ease-in-out infinite;
+}
+.dark .s006-skel {
+  background-image: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, .09) 50%,
+      rgba(255, 255, 255, 0) 100%);
+}
+.s006-skel--text { height: .75rem; }
+.s006-skel--line { height: 1rem; }
+.s006-skel--hero { height: 2.5rem; }
+.s006-skel--avatar { width: 40px; height: 40px; border-radius: 9999px; }
+
+@keyframes s006-shimmer {
+  from { background-position: 150% 0; }
+  to   { background-position: -50% 0; }
+}
+
+/* --- 空状態 (§4-4) --------------------------------------------------------- */
+.s006-empty { text-align: center; padding: 2.75rem 1.25rem; }
+
+.s006-empty__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto .875rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background-color: rgba(var(--primary-rgb), .08);
+  color: rgb(var(--primary-rgb));
+}
+
+.s006-empty__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: .375rem;
+  color: rgb(var(--default-text-color));
+}
+
+.s006-empty__body {
+  font-size: .8125rem;
+  color: rgb(var(--s006-muted));
+  max-width: 22rem;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* --- 取引カード (§5 取引履歴) ---------------------------------------------- */
+.s006-tx {
+  display: flex;
+  align-items: center;
+  gap: .875rem;
+  min-height: 64px;
+  padding: .75rem 1.25rem;
+  border-bottom: 1px solid rgb(var(--s006-line));
+  transition: background-color .15s ease;
+}
+.s006-tx:last-child { border-bottom: 0; }
+.s006-tx:hover { background-color: rgba(var(--primary-rgb), .04); }
+
+.s006-tx__icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
+}
+.s006-tx__icon--in  { background-color: rgba(38, 191, 148, .12); color: rgb(38, 191, 148); }
+.s006-tx__icon--out { background-color: rgba(var(--primary-rgb), .10); color: rgb(var(--primary-rgb)); }
+
+.s006-tx__body { flex: 1 1 auto; min-width: 0; }
+.s006-tx__title {
+  font-size: .875rem;
+  font-weight: 600;
+  color: rgb(var(--default-text-color));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.s006-tx__amount {
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: .9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--default-text-color));
+}
+
+/* --- 取引に紐づく NFT (§5 取引履歴) ----------------------------------------
+ * NFT の取引は金額が 1 sat（$0.00）なので、行の主役は「どの NFT か」になる。
+ * 行の高さが暴れないよう、サムネイルは 24px に固定し、名前は 1 行で省く。 */
+.s006-tx__nfts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .375rem;
+  margin-top: .25rem;
+}
+
+.s006-tx__nft {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  max-width: 12rem;
+  padding: .125rem .5rem .125rem .125rem;
+  border: 1px solid rgb(var(--s006-line));
+  border-radius: 9999px;
+  background-color: rgb(var(--s006-surface));
+}
+
+/* 画像が出ない NFT では onerror で <img> を外す。その分だけ左の余白を戻す */
+.s006-tx__nft:not(:has(.s006-tx__nft-thumb)) { padding-left: .5rem; }
+
+.s006-tx__nft-thumb {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  -o-object-fit: cover;
+     object-fit: cover;
+  background-color: rgb(var(--s006-line));
+}
+
+/* 画像以外（動画・音声・PDF）はアイコンで代える */
+.s006-tx__nft-thumb--file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  color: rgb(var(--s006-muted));
+}
+
+.s006-tx__nft-name {
+  min-width: 0;
+  font-size: .75rem;
+  font-weight: 600;
+  color: rgb(var(--default-text-color));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s006-tx__nft--more {
+  padding: .125rem .5rem;
+  font-size: .75rem;
+  color: rgb(var(--s006-muted));
+}
+
+/* --- 取引の詳細 (§5 取引履歴) ----------------------------------------------
+ * 一覧の行をタップすると開くモーダルの中身。単独ページからも同じ partial を
+ * 使うので、幅は親（カード / モーダル）に任せる。 */
+.s006-txd { display: flex; flex-direction: column; gap: 1rem; }
+
+.s006-txd__head { display: flex; align-items: center; gap: .5rem; }
+
+.s006-txd__nfts { display: flex; flex-direction: column; gap: .75rem; }
+
+.s006-txd__nft {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .75rem;
+  border: 1px solid rgb(var(--s006-line));
+  border-radius: .75rem;
+}
+
+.s006-txd__nft-thumb {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: .5rem;
+  -o-object-fit: cover;
+     object-fit: cover;
+  background-color: rgb(var(--s006-line));
+}
+
+.s006-txd__nft-thumb--file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: rgb(var(--s006-muted));
+}
+
+.s006-txd__nft-body { min-width: 0; }
+.s006-txd__nft-name {
+  font-size: .9375rem;
+  font-weight: 600;
+  color: rgb(var(--default-text-color));
+}
+
+/* 事実の並び。項目名は左に固定幅で、値は折り返す */
+.s006-txd__facts { display: flex; flex-direction: column; gap: .625rem; }
+.s006-txd__facts > div { display: flex; gap: .75rem; align-items: baseline; }
+.s006-txd__facts dt {
+  flex: 0 0 5.5rem;
+  font-size: .75rem;
+  color: rgb(var(--s006-muted));
+}
+.s006-txd__facts dd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: .8125rem;
+  color: rgb(var(--default-text-color));
+}
+
+/* 行をタップすると詳細が開く。押せることを見た目でも示す */
+.s006-tx[role="button"],
+.s006-txlist [role="button"] { cursor: pointer; }
+
+/* --- フォーカス可視化 (§3 アクセシビリティ) -------------------------------- */
+.s006-card :focus-visible,
+.s006-cta:focus-visible,
+.s006-tap:focus-visible,
+.s006-tx:focus-visible {
+  outline: 2px solid rgb(var(--primary-rgb));
+  outline-offset: 2px;
+  border-radius: .5rem;
+}
+
+/* --- 穏やかな遷移 (§4-5) --------------------------------------------------- */
+.s006-fade-in { animation: s006-fade-in .28s ease-out both; }
+@keyframes s006-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* --- 動きの抑制 (§3) ------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .s006-skel { animation: none; background-image: none; }
+  .s006-fade-in { animation: none; }
+  .s006-cta { transition: none; }
+  .s006-cta:active { transform: none; }
+}
+
+/* --- 取引履歴テーブルの見た目寄せ (§5 取引履歴) ---------------------------
+ * 取引一覧は django_tables2 (`views_custom_table.html`) が生成する <table>。
+ * ページング等の挙動を壊さないよう、マークアップは触らず CSS で
+ * 「取引カードの並び」に寄せる。行の構造は
+ *   tr > td > .py-2 > .flex[icon | 本文 | 金額] + hr
+ * で、各セルに .item-* クラスが付いている。 */
+
+.s006-txlist table { width: 100%; }
+
+/* 行 */
+.s006-txlist tbody tr > td { padding: 0; }
+.s006-txlist tbody tr > td > .py-2 {
+  padding: .75rem 1.25rem !important;
+  min-height: 64px;
+  border-bottom: 1px solid rgb(var(--s006-line));
+  transition: background-color .15s ease;
+}
+.s006-txlist tbody tr:last-child > td > .py-2 { border-bottom: 0; }
+.s006-txlist tbody tr:hover > td > .py-2 { background-color: rgba(var(--primary-rgb), .04); }
+.s006-txlist td > hr { display: none; }   /* 罫線は行の border-bottom に一本化 */
+
+/* 種別アイコンを 40px の円に収める（.s006-tx__icon と同じ見え方） */
+.s006-txlist .item-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: .875rem !important;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(var(--primary-rgb), .10);
+}
+/* 受取（下向き矢印）だけ success 系に。:has 非対応でも上の既定色で成立する */
+.s006-txlist .item-icon:has(.bi-arrow-down-circle-fill) {
+  background-color: rgba(38, 191, 148, .12);
+}
+.s006-txlist .item-icon .bi { font-size: 1.125rem !important; }
+.s006-txlist .item-icon .bi + .bi { margin-left: .125rem !important; }
+
+/* 日時は補助情報 */
+.s006-txlist .item-trans_date {
+  font-size: .75rem;
+  color: rgb(var(--s006-muted));
+  font-variant-numeric: tabular-nums;
+  margin-top: .125rem;
+}
+
+/* 金額。右端の余白 (mr-20 = 5rem) を詰めて右寄せを効かせる */
+.s006-txlist .flex.ml-auto { margin-right: 0 !important; }
+.s006-txlist .item-dollar_amout > div {
+  font-size: .9375rem !important;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--default-text-color));
+}
+.s006-txlist .item-bsv_amount > div {
+  font-size: .75rem;
+  color: rgb(var(--s006-muted)) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 外部リンクはタッチターゲットを確保 */
+.s006-txlist .item-hex a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  color: rgb(var(--s006-muted));
+}
+.s006-txlist .item-hex a:hover { color: rgb(var(--primary-rgb)); }
+
+/* confirmed は中身が空の badge が出るだけなので消し、pending だけ見せる */
+.s006-txlist .item-status .badge:not([class*="bg-outline-danger"]) { display: none; }
+
+/* django_tables2 が付ける tr.even / tr.odd による縞模様を無効化する。
+   カード内の一覧としては地が揃っているほうが読みやすく、状態変化（hover）
+   だけが背景色で伝わるようにしたい。 */
+.s006-txlist tbody tr.even > td > .py-2,
+.s006-txlist tbody tr.odd  > td > .py-2 { background-color: transparent; }
+.s006-txlist tbody tr.even,
+.s006-txlist tbody tr.odd { background-color: transparent !important; }
+
+/* --- ページャ (§4-4 無音の切り捨てをしない) --------------------------------
+ * 取引履歴は 25 件ごとにページングされる。リンクが無いと超過分に到達でき
+ * ないので、前後移動と現在地を必ず出す。タッチターゲットは 44px 以上。 */
+.s006-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .5rem 1rem .75rem;
+  border-top: 1px solid rgb(var(--s006-line));
+}
+
+.s006-pager__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  min-height: 44px;
+  padding: 0 .875rem;
+  border-radius: 9999px;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: rgb(var(--primary-rgb));
+  text-decoration: none;
+  transition: background-color .18s ease;
+}
+
+.s006-pager__btn:hover { background-color: rgba(var(--primary-rgb), .08); }
+
+.s006-pager__btn--off {
+  color: rgb(var(--s006-muted));
+  cursor: default;
+  opacity: .55;
+}
+
+.s006-pager__status {
+  font-size: .75rem;
+  color: rgb(var(--s006-muted));
+  letter-spacing: .04em;
+}
+
+/* --- ボトムタブ (§2「主要導線を露出、2 タップ以内」) ------------------------
+ * モバイルはこれまで左上ハンバーガーだけで、送金・受取・NFT・設定はどれも
+ * 「開く → 選ぶ」の 2 アクションだった。サイドバーが常設される幅では出さない
+ * （二重のナビにしない）。iOS のホームインジケータぶんは safe-area で避ける。 */
+.s006-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  padding-bottom: var(--safe-bottom, 0px);
+  background-color: rgb(var(--s006-surface));
+  border-top: 1px solid rgb(var(--s006-line));
+  box-shadow: 0 -6px 20px -12px rgba(0, 0, 0, .35);
+}
+
+.s006-tabbar__item {
+  flex: 1 1 0;
+  min-height: 56px;          /* ラベルつきで 44px 以上を確保 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .125rem;
+  padding: .375rem .25rem;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: rgb(var(--s006-muted));
+  text-decoration: none;
+  transition: color .18s ease, background-color .18s ease;
+}
+
+.s006-tabbar__item i {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.s006-tabbar__item:hover { color: rgb(var(--primary-rgb)); }
+
+.s006-tabbar__item.is-active {
+  color: rgb(var(--primary-rgb));
+  background-color: rgba(var(--primary-rgb), .08);
+}
+
+/* 押した直後（遷移待ち）。現在地と同じ色を先に返して、タップを受け取った
+   ことをその場で示す（§4-4「非同期状態を必ず可視化」）。 */
+.s006-tabbar__item.is-pending {
+  color: rgb(var(--primary-rgb));
+  background-color: rgba(var(--primary-rgb), .08);
+}
+
+/* タブバーの高さぶん、本文の下に逃げ場を作る（最後の行が隠れないように） */
+@media (max-width: 1023.98px) {
+  body { padding-bottom: calc(56px + var(--safe-bottom, 0px)); }
+}
+/* ガウディ層は s006 の骨格クラスを再スキンするので、必ず s006 の後。 */
+/* ============================================================================
+ * ガウディ層 — S006 のデザイン原則の上に、ガウディ建築の造形言語を載せる。
+ *
+ * s006.css が定義した骨格クラス (.s006-card / .s006-cta / .s006-txlist …) を
+ * 「再スキン」する形で書く。テンプレート側のクラス名を書き換えずに見た目だけを
+ * 差し替えられるので、S006 の構造（1画面1主題・統一カード・空状態・
+ * スケルトン・タッチターゲット）はそのまま保たれる。
+ *
+ * 5つの手法との対応:
+ *   1 有機的な曲線      → --g-leaf-* の非対称 border-radius、.gaudi-wave
+ *   2 トレカディス      → --g-trencadis タイル、.gaudi-mosaic、石肌グレイン
+ *   3 生体的アニメーション → SVG feTurbulence による滲み、.gaudi-grow
+ *   4 構造的ナビゲーション → .gaudi-branch（枝分かれのスタガ）
+ *   5 ネオモルフィズム   → --g-clay-* の陰影（※金額と主CTAには掛けない）
+ *
+ * 可読性の担保: ネオモルフィズムは低コントラストになりやすいので、
+ * 「面」と副次コントロールに限定し、金額 (.s006-hero) と主要 CTA は
+ * 高コントラストのまま据え置く（S006 §2「金額・状態表示は最優先の可読性」）。
+ * ========================================================================== */
+
+:root {
+  /* --- トレカディス（割れた陶片）のパレット --------------------------------
+   * バルセロナの太陽と海、そして焼き物の土。 */
+  --g-terracotta:  181  74  40;   /* 主要 CTA。白文字で 5.3:1（WCAG AA） */
+  --g-terracotta-d:150  58  30;   /* 押下・境界（グラデーション末端と影） */
+  --g-terracotta-ink:150 58 30;   /* 面の上に載る文字・アイコン用 */
+  --g-orange:      226 138  46;
+  --g-gold:        222 168  62;
+  --g-blue:         22  70 110;   /* 地中海の深いブルー */
+  --g-earth:        67  36  26;   /* サイドバーの地（上）。焼き締めた土 */
+  --g-earth-deep:   46  24  17;   /* サイドバーの地（下）。窯の底 */
+  --g-blue-l:       47 108 156;
+  --g-turquoise:    46 139 132;   /* グエル公園のタイル */
+  --g-sand:        246 239 227;   /* サンドベージュ（地・上） */
+  --g-sand-d:      233 220 200;   /* サンドベージュ（地・下） */
+  --g-surface:     252 249 243;   /* 陶土の白（カード面） */
+  --g-ink:          44  33  25;   /* 文字。地の上で 13:1 */
+  --g-ink-soft:    124 106  90;   /* 補助文字。地の上で 4.6:1 */
+  --g-grout:       214 199 176;   /* 目地 */
+
+  /* --- 有機的な曲線（非対称の葉形） ---------------------------------------
+   * 直線も、四隅が等しい角丸も避ける。対で使うと左右が呼応する。 */
+  --g-leaf:      2.75rem 1.25rem 2.75rem 1.25rem;
+  --g-leaf-alt:  1.25rem 2.75rem 1.25rem 2.75rem;
+  --g-leaf-sm:   1.5rem .5rem 1.5rem .5rem;
+  --g-leaf-sm-a: .5rem 1.5rem .5rem 1.5rem;
+
+  /* --- 石肌のグレイン（feTurbulence を data URI で焼いたもの） -------------
+   * 外部リクエストを一切増やさずに質感を足すため、画像ではなく SVG を埋める。 */
+  --g-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+
+  /* --- クレイ調の陰影（ネオモルフィズム） ---------------------------------
+   * 上から光が当たる粘土。落ち影と拾い光を対で持たせる。 */
+  --g-clay:
+      0 18px 40px -24px rgba(var(--g-ink) / .38),
+      0 4px 10px -6px  rgba(var(--g-ink) / .18),
+      inset 0 1px 0 0   rgba(255 255 255 / .85),
+      inset 0 -1px 0 0  rgba(var(--g-grout) / .55);
+  --g-clay-raised:
+      6px 6px 14px -6px rgba(var(--g-ink) / .28),
+      -5px -5px 12px -6px rgba(255 255 255 / .95);
+  --g-clay-pressed:
+      inset 4px 4px 10px -4px rgba(var(--g-ink) / .30),
+      inset -3px -3px 8px -4px rgba(255 255 255 / .90);
+}
+
+.dark {
+  --g-terracotta:  206  97  56;
+  --g-terracotta-d:170  70  38;
+  --g-terracotta-ink:236 158 106; /* 暗い面の上で 6.8:1。暗いままだと AA を割る */
+  --g-orange:      232 152  70;
+  --g-gold:        226 178  86;
+  --g-blue:        108 168 214;
+  --g-earth:        46  26  19;
+  --g-earth-deep:   30  17  12;
+  --g-blue-l:      142 190 226;
+  --g-turquoise:    88 180 172;
+  --g-sand:         16  27  36;   /* 夜の地中海 */
+  --g-sand-d:       11  19  26;
+  --g-surface:      27  41  52;
+  --g-ink:         240 231 216;
+  --g-ink-soft:    166 180 192;
+  --g-grout:        45  63  78;
+
+  --g-clay:
+      0 18px 40px -22px rgba(0 0 0 / .75),
+      0 4px 10px -6px  rgba(0 0 0 / .45),
+      inset 0 1px 0 0   rgba(255 255 255 / .07),
+      inset 0 -1px 0 0  rgba(0 0 0 / .35);
+  --g-clay-raised:
+      6px 6px 14px -6px rgba(0 0 0 / .60),
+      -5px -5px 12px -6px rgba(255 255 255 / .05);
+  --g-clay-pressed:
+      inset 4px 4px 10px -4px rgba(0 0 0 / .60),
+      inset -3px -3px 8px -4px rgba(255 255 255 / .05);
+}
+
+/* テーマの primary（既定は紫）をテラコッタに寄せる。
+   s006.css も theme のバッジ類も --primary-rgb を見ているので、
+   ここ一点で画面全体の差し色が揃う。
+   ⚠ 2点ハマりどころがある:
+    (1) wallet-base.html は app.css を style.css より「前」に読む。同じ :root だと
+        後勝ちでテーマに負けるので、html:root (0,1,1) / html:root.dark (0,2,1) で
+        テーマの :root / .dark を上回らせる。
+    (2) テーマの --primary-rgb は「132, 90 ,223」とカンマ区切りで、style.css 全体が
+        rgba(var(--primary-rgb), .5) の形で使っている。スペース区切りで上書きすると
+        rgba(181 74 40, .5) という不正値になり全滅するので、カンマ区切りを保つ。 */
+html:root {
+  --primary: 181 74 40;
+  --primary-rgb: 181, 74, 40;
+  --default-text-color: 44 33 25;
+}
+html:root.dark {
+  --primary: 206 97 56;
+  --primary-rgb: 206, 97, 56;
+  --default-text-color: 240 231 216;
+}
+
+/* ============================================================================
+ * 1. 地 — 石と砂。直線の境目を作らない。
+ * ========================================================================== */
+#s006-ground {
+  background:
+    /* 陽だまり（オレンジ）と海（ブルー）のにじみ。円形なので直線が出ない */
+    radial-gradient(120% 80% at 12% -10%,  rgba(var(--g-orange) / .20) 0%, transparent 60%),
+    radial-gradient(100% 70% at 92% 4%,    rgba(var(--g-gold) / .16) 0%, transparent 55%),
+    radial-gradient(130% 90% at 50% 108%,  rgba(var(--g-blue) / .16) 0%, transparent 62%),
+    linear-gradient(178deg, rgb(var(--g-sand)) 0%, rgb(var(--g-sand-d)) 100%);
+}
+
+/* 石肌。地の上に重ねる薄いグレイン層 */
+#s006-ground::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--g-grain);
+  background-size: 160px 160px;
+  opacity: .26;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.dark #s006-ground::after { opacity: .30; mix-blend-mode: overlay; }
+
+/* ============================================================================
+ * 2. 統一カード — 陶土の塊。四隅が等しくない。
+ * ========================================================================== */
+.s006-card {
+  position: relative;
+  background-color: rgb(var(--g-surface));
+  border: 0;
+  border-radius: var(--g-leaf);
+  box-shadow: var(--g-clay);
+  padding: 1.5rem 1.375rem;
+  isolation: isolate;
+}
+
+/* カード面にも同じ石肌を通す。角丸に追従させるため ::before で内側に敷く */
+.s006-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-image: var(--g-grain);
+  background-size: 160px 160px;
+  opacity: .13;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.dark .s006-card::before { opacity: .22; mix-blend-mode: overlay; }
+
+/* 続けて並ぶカードは曲線を反転させ、上下で呼応させる（リズムを作る） */
+.s006-card + .s006-card,
+.s006-card ~ .s006-card { border-radius: var(--g-leaf-alt); }
+
+/* --- 小さい札は小さい葉で -------------------------------------------------
+ * --g-leaf(2.75rem = 44px) は、器として使う大きなカードの寸法。NFT の
+ * グリッドは 1 枚 120〜160px まで小さくなるので、同じ 44px を当てると
+ * 角丸が幅の 3 割を占めてアーチに見え、中の画像も大きく欠ける。
+ *
+ * 曲線そのものは CTA と同じ --g-leaf-sm 系に落とす。ゴーストの Send は
+ * --g-leaf-sm-a を持つので、札とボタンがちょうど鏡像になり、
+ * 「対になるものは曲線を反転させて呼応させる」語彙のまま釣り合う。 */
+.nft-card { border-radius: var(--g-leaf-sm); }
+.nft-card + .nft-card,
+.nft-card ~ .nft-card { border-radius: var(--g-leaf-sm-a); }
+
+/* 札の中の Send は塗りの CTA（--primary）。ゴーストと違って基底の
+   --g-leaf-sm を持つので、そのままだと札と同じ向きの曲線になり、対の
+   関係が崩れる。札に対して反転させ、札ごとに向きが入れ替わるリズムにも
+   追従させる（上の .nft-card と同じ並び順で反転する）。 */
+.nft-card .s006-cta { border-radius: var(--g-leaf-sm-a); }
+.nft-card ~ .nft-card .s006-cta { border-radius: var(--g-leaf-sm); }
+
+.s006-card--flush { padding: 0; overflow: hidden; }
+
+/* ============================================================================
+ * 2b. トレカディス — 割れた陶片の帯。
+ * 不定形の四角形を手で置き、目地（--g-grout）で割る。
+ * ========================================================================== */
+.gaudi-mosaic {
+  height: 14px;
+  border-radius: 999px;
+  background-color: rgb(var(--g-grout));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='168' height='14' viewBox='0 0 168 14' preserveAspectRatio='none'%3E%3Cg%3E%3Cpath d='M0 1 L21 0 L23 13 L1 14 Z' fill='%23b54a28'/%3E%3Cpath d='M25 0 L44 2 L41 14 L24 13 Z' fill='%23e28a2e'/%3E%3Cpath d='M46 1 L61 0 L64 12 L44 14 Z' fill='%23164670'/%3E%3Cpath d='M64 0 L84 1 L82 14 L65 13 Z' fill='%232e8b84'/%3E%3Cpath d='M86 2 L104 0 L106 13 L84 14 Z' fill='%23dea83e'/%3E%3Cpath d='M107 0 L124 2 L121 14 L105 12 Z' fill='%23b54a28'/%3E%3Cpath d='M126 1 L145 0 L143 13 L124 14 Z' fill='%232f6c9c'/%3E%3Cpath d='M147 0 L168 2 L166 14 L145 13 Z' fill='%23e28a2e'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 168px 100%;
+  background-repeat: repeat-x;
+  opacity: .92;
+}
+.gaudi-mosaic--thin { height: 8px; }
+
+/* ============================================================================
+ * 1b. 波型の区切り — セクションの境界をまっすぐ引かない。
+ * ========================================================================== */
+.gaudi-wave {
+  height: 34px;
+  margin: -6px auto -10px;
+  background-repeat: repeat-x;
+  background-position: center;
+  background-size: 220px 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='34' viewBox='0 0 220 34'%3E%3Cpath d='M0 20 C 30 4, 52 4, 78 17 S 128 34, 156 20 S 200 4, 220 14' fill='none' stroke='%23b54a28' stroke-opacity='.34' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0 27 C 34 12, 58 12, 84 24 S 132 40, 162 27 S 202 12, 220 21' fill='none' stroke='%23164670' stroke-opacity='.20' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* ============================================================================
+ * 3. タイポ — 金額は主役。ここにネオモルフィズムは掛けない（可読性優先）。
+ * ========================================================================== */
+.s006-hero {
+  color: rgb(var(--g-ink));
+  letter-spacing: -.03em;
+  /* 陶片に彫り込んだような、ごく浅い立体。輪郭は潰さない */
+  text-shadow: 0 1px 0 rgba(255 255 255 / .7), 0 2px 6px rgba(var(--g-ink) / .10);
+}
+.dark .s006-hero { text-shadow: 0 1px 0 rgba(0 0 0 / .5); }
+
+.s006-eyebrow { color: rgb(var(--g-ink-soft)); letter-spacing: .16em; }
+.s006-sub  { color: rgb(var(--g-ink-soft)); }
+.s006-meta { color: rgb(var(--g-ink-soft)); }
+
+/* ============================================================================
+ * 5. CTA — クレイ（粘土）の立体感。主要 CTA だけは塗りで高コントラストを守る。
+ * ========================================================================== */
+.s006-cta {
+  border-radius: var(--g-leaf-sm);
+  min-height: 56px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  transition: transform .18s cubic-bezier(.34, 1.56, .64, 1),
+              box-shadow .18s ease, background-color .18s ease;
+}
+/* 対になる CTA は曲線を反転させ、左右で呼応させる */
+.s006-cta--ghost { border-radius: var(--g-leaf-sm-a); }
+
+.s006-cta--primary {
+  background-image: linear-gradient(152deg,
+      rgb(var(--g-orange)) 0%, rgb(var(--g-terracotta)) 58%, rgb(var(--g-terracotta-d)) 100%);
+  color: #fff;
+  box-shadow:
+      0 12px 24px -12px rgba(var(--g-terracotta-d) / .85),
+      inset 0 1px 0 rgba(255 255 255 / .34),
+      inset 0 -2px 0 rgba(var(--g-terracotta-d) / .55);
+}
+.s006-cta--primary:hover {
+  background-image: linear-gradient(152deg,
+      rgb(var(--g-orange)) 0%, rgb(var(--g-terracotta)) 46%, rgb(var(--g-terracotta-d)) 100%);
+  transform: translateY(-1px);
+}
+.s006-cta--primary:active {
+  transform: translateY(1px) scale(.985);
+  box-shadow: 0 4px 10px -8px rgba(var(--g-terracotta-d) / .9),
+              inset 0 2px 6px rgba(var(--g-terracotta-d) / .55);
+}
+
+/* 副次 CTA は粘土から浮き上がった面として表す（ネオモルフィズムはここ） */
+.s006-cta--ghost {
+  background-color: rgb(var(--g-surface));
+  color: rgb(var(--g-terracotta-ink));
+  border: 1px solid rgba(var(--g-grout) / .8);
+  box-shadow: var(--g-clay-raised);
+}
+.s006-cta--ghost:hover {
+  background-color: rgb(var(--g-surface));
+  transform: translateY(-1px);
+}
+.s006-cta--ghost:active { box-shadow: var(--g-clay-pressed); transform: translateY(1px); }
+
+/* ============================================================================
+ * 取引カード — 陶片のアイコン。
+ * ========================================================================== */
+.s006-txlist .item-icon,
+.s006-tx__icon {
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;   /* 石ころの輪郭 */
+  box-shadow: var(--g-clay-raised);
+}
+.s006-txlist .item-icon { background-color: rgba(var(--g-terracotta) / .16); }
+.s006-txlist .item-icon:has(.bi-arrow-down-circle-fill) {
+  background-color: rgba(var(--g-turquoise) / .18);
+}
+.s006-tx__icon--in  { background-color: rgba(var(--g-turquoise) / .18); color: rgb(var(--g-turquoise)); }
+.s006-tx__icon--out { background-color: rgba(var(--g-terracotta) / .16); color: rgb(var(--g-terracotta-ink)); }
+
+.s006-txlist tbody tr > td > .py-2 { border-bottom-color: rgba(var(--g-grout) / .55); }
+.s006-txlist tbody tr:hover > td > .py-2 { background-color: rgba(var(--g-orange) / .07); }
+.s006-txlist .item-trans_date,
+.s006-txlist .item-bsv_amount > div { color: rgb(var(--g-ink-soft)) !important; }
+.s006-txlist .item-dollar_amout > div { color: rgb(var(--g-ink)); }
+
+/* 空状態のアイコンも石ころに */
+.s006-empty__icon {
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  background-color: rgba(var(--g-terracotta) / .14);
+  color: rgb(var(--g-terracotta-ink));
+  box-shadow: var(--g-clay-raised);
+}
+.s006-empty__title { color: rgb(var(--g-ink)); }
+.s006-empty__body  { color: rgb(var(--g-ink-soft)); }
+
+/* ============================================================================
+ * 3. 生体的アニメーション
+ * ------------------------------------------------------------------------
+ * 「液体がにじみ出る」表現は SVG フィルタ（feTurbulence + feDisplacementMap）で
+ * 出す。WebGL/three.js を使わないのは、この FE が S006 §3 のオフラインシェル
+ * 要件のために装飾 WebGL を撤去済みだから（追加ロード 0KB・オフライン可・
+ * GPU を常時回さない）。フィルタ本体は components/gaudi-defs.html にある。
+ * ========================================================================== */
+
+/* 植物が伸びるように現れる（スクロール連動。JS が .is-grown を付ける） */
+.gaudi-grow {
+  opacity: 0;
+  transform: translateY(22px) scaleY(.965);
+  transform-origin: 50% 100%;      /* 根元から伸びる */
+  transition: opacity .62s cubic-bezier(.22, 1, .36, 1),
+              transform .72s cubic-bezier(.22, 1, .36, 1);
+  will-change: opacity, transform;
+}
+.gaudi-grow.is-grown { opacity: 1; transform: none; }
+
+/* 枝分かれの遅延。--g-i は JS が各要素に振る */
+.gaudi-grow { transition-delay: calc(var(--g-i, 0) * 70ms); }
+
+/* モーダルが液体のように滲み出る */
+.gaudi-liquid { animation: gaudi-bleed .52s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes gaudi-bleed {
+  0%   { opacity: 0; transform: scale(.88) translateY(14px); filter: url(#gaudi-liquid) blur(6px); }
+  55%  { opacity: 1; filter: url(#gaudi-liquid) blur(1px); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+/* 残高が更新されたときの脈。過剰にしない（S006 §3「上質な手触り」） */
+.gaudi-pulse { animation: gaudi-pulse .9s cubic-bezier(.22, 1, .36, 1); }
+@keyframes gaudi-pulse {
+  0%   { transform: scale(1); }
+  32%  { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
+/* ============================================================================
+ * 4. 構造的ナビゲーション — 柱が枝分かれして天井を支える。
+ * サイドメニューの各項目を、根元から順に開かせる。
+ * ========================================================================== */
+.gaudi-branch > * {
+  animation: gaudi-branch .5s cubic-bezier(.22, 1, .36, 1) both;
+  animation-delay: calc(var(--g-i, 0) * 55ms);
+}
+@keyframes gaudi-branch {
+  from { opacity: 0; transform: translateX(-14px) rotate(-1.5deg); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ============================================================================
+ * フォーカス可視化（アクセシビリティ）— 差し色に合わせて引き直す
+ * ========================================================================== */
+.s006-card :focus-visible,
+.s006-cta:focus-visible,
+.s006-tap:focus-visible,
+.s006-tx:focus-visible {
+  outline: 3px solid rgb(var(--g-terracotta));
+  outline-offset: 3px;
+}
+
+/* ============================================================================
+ * 動きの抑制（S006 §3）— 有機的な動きは全部止める。見た目の造形は残す。
+ * ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .gaudi-grow { opacity: 1; transform: none; transition: none; }
+  .gaudi-liquid, .gaudi-pulse { animation: none; filter: none; }
+  .gaudi-branch > * { animation: none; opacity: 1; transform: none; }
+  .s006-cta { transition: none; }
+  .s006-cta--primary:hover, .s006-cta--ghost:hover { transform: none; }
+}
+
+/* ============================================================================
+ * モーダル — 陶土の塊が液体のように滲み出てくる。
+ * ダッシュボードから 1 タップで開くので、カードと同じ造形言語で揃える。
+ * （従来は bg-white/text-gray-* の直書きでダークに追従せず、カードと並ぶと
+ *   別アプリのように見えていた）
+ * ========================================================================== */
+.gaudi-modal {
+  display: flex;
+  flex-direction: column;
+  background-color: rgb(var(--g-surface));
+  border: 0;
+  border-radius: var(--g-leaf);
+  box-shadow: var(--g-clay);
+  color: rgb(var(--g-ink));
+  overflow: hidden;
+}
+
+.gaudi-modal__head {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1.125rem 1.25rem .875rem;
+  border-bottom: 1px solid rgba(var(--g-grout) / .55);
+}
+
+.gaudi-modal__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: rgb(var(--g-ink));
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 閉じるは副次。タッチターゲットは 44px を割らない（WCAG 2.5.5） */
+.gaudi-modal__close {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  border: 0;
+  background-color: transparent;
+  color: rgb(var(--g-ink-soft));
+  font-size: 1.125rem;
+  transition: background-color .15s ease, color .15s ease;
+}
+.gaudi-modal__close:hover {
+  background-color: rgba(var(--g-grout) / .45);
+  color: rgb(var(--g-ink));
+}
+
+.gaudi-modal__body { padding: 1.25rem; }
+.gaudi-modal__foot { padding: 0 1.25rem 1.25rem; }
+
+/* --- 入力欄 -----------------------------------------------------------------
+ * 従来はラベルが緑/水色のベタ塗り 2 カラムで、文字がはみ出て切れていた
+ * （"Currenc|y"）。ラベルは欄の上に置き、欄そのものを粘土のくぼみにする。 */
+.gaudi-field { margin-bottom: 1.125rem; }
+
+.gaudi-field__label {
+  display: block;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgb(var(--g-ink-soft));
+  margin-bottom: .4375rem;
+  padding-left: .25rem;
+}
+
+/* くぼみ（ネオモルフィズムの凹）。入力文字は高コントラストのまま */
+.gaudi-field__well {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 56px;
+  padding: 0 1rem;
+  border-radius: var(--g-leaf-sm);
+  background-color: rgba(var(--g-grout) / .22);
+  box-shadow: var(--g-clay-pressed);
+  transition: box-shadow .18s ease;
+}
+.gaudi-field__well:focus-within {
+  box-shadow: var(--g-clay-pressed), 0 0 0 3px rgba(var(--g-terracotta) / .38);
+}
+
+/* 欄の中の input/select は枠を持たない。地はくぼみが担当する */
+.gaudi-field__well input,
+.gaudi-field__well select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 52px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: rgb(var(--g-ink));
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.gaudi-field__well input::-moz-placeholder { color: rgb(var(--g-ink-soft)); opacity: .85; }
+.gaudi-field__well input::placeholder { color: rgb(var(--g-ink-soft)); opacity: .85; }
+
+/* テーマの .form-control は白（ダークでは rgb(26 28 30)）を地に敷くので、
+   くぼみの中では必ず透明に戻す。詳細度でテーマ側を上回らせる必要がある
+   （html を足して (0,2,2) にする）。textarea は行数ぶん伸ばしたいので
+   高さを固定しない。 */
+html .gaudi-field__well input,
+html .gaudi-field__well select,
+html .gaudi-field__well textarea,
+html.dark .gaudi-field__well input,
+html.dark .gaudi-field__well select,
+html.dark .gaudi-field__well textarea {
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+  color: rgb(var(--g-ink));
+}
+html .gaudi-field__well textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  min-height: 84px;
+  padding: .75rem 0;
+  outline: 0;
+  resize: vertical;
+  font-size: 1rem;
+}
+.gaudi-field__well select { cursor: pointer; }
+.dark .gaudi-field__well select option { background-color: rgb(var(--g-surface)); }
+
+/* 単位・QR などの添え物 */
+.gaudi-field__affix {
+  flex: 0 0 auto;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: rgb(var(--g-ink-soft));
+}
+.gaudi-field__action {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  color: rgb(var(--g-terracotta-ink));
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+.gaudi-field__action:hover { background-color: rgba(var(--g-terracotta) / .14); }
+
+/* --- 宛先コンボボックス（連絡帳から選ぶ / 直接入力する） ---------------------
+ * static/js/recipient-picker.js が組み立てる。一覧は「浮かせない」で欄の下に
+ * 開く: .gaudi-modal は overflow:hidden なので、絶対配置だとモーダルの下端で
+ * 切れてしまう（送金モーダルの宛先欄は下から 2 番目にある）。 */
+.gaudi-combo__labelrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .4375rem;
+}
+.gaudi-combo__labelrow .gaudi-field__label { margin-bottom: 0; }
+
+/* 連絡帳を開くボタン。欄の中ではなくラベルの行に置く（欄には QR があり、
+   44px を 2 つ並べるとプレースホルダが端末幅で切れる）。 */
+.gaudi-combo__toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  min-height: 44px;
+  padding: 0 .625rem;
+  border: 0;
+  background: transparent;
+  border-radius: 1.25rem .5rem 1.25rem .5rem;
+  color: rgb(var(--g-terracotta-ink));
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+.gaudi-combo__toggle:hover { background-color: rgba(var(--g-terracotta) / .10); }
+.gaudi-combo__toggle.is-open { background-color: rgba(var(--g-terracotta) / .14); }
+.gaudi-combo__toggle .bi { font-size: 1rem; }
+
+/* プレースホルダは "Paymail Address or Bitcoin Address" と長い。入力した
+   アドレス自体は 1rem のまま読ませ、プレースホルダだけ詰めて全文を見せる。 */
+.gaudi-field--combo .gaudi-field__well input::-moz-placeholder { font-size: .8125rem; }
+.gaudi-field--combo .gaudi-field__well input::placeholder { font-size: .8125rem; }
+
+/* 種類の表示。「これは paymail です / Bitcoin アドレスです」と言い切る。
+   曖昧なまま送らせない（S006 §4「状態を曖昧にしない」）。 */
+.gaudi-combo__hint {
+  margin: .4375rem .25rem 0;
+  font-size: .75rem;
+  line-height: 1.4;
+  color: rgb(var(--g-ink-soft));
+  min-height: 1.05rem;
+}
+.gaudi-combo__hint--warn { color: rgb(var(--g-terracotta-ink)); font-weight: 600; }
+
+.gaudi-combo__panel {
+  margin-top: .5rem;
+  border-radius: var(--g-leaf-sm-a);
+  background-color: rgba(var(--g-grout) / .18);
+  box-shadow: var(--g-clay-pressed);
+  overflow: hidden;
+}
+
+.gaudi-combo__list {
+  max-height: 15.5rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 行。タッチターゲットは 44px を割らない（WCAG 2.5.5） */
+.gaudi-combo__option {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  min-height: 56px;
+  padding: .5rem .875rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(var(--g-grout) / .45);
+  transition: background-color .14s ease;
+}
+.gaudi-combo__option:last-child { border-bottom: 0; }
+.gaudi-combo__option:hover,
+.gaudi-combo__option.is-active {
+  background-color: rgba(var(--g-terracotta) / .14);
+}
+
+.gaudi-combo__avatar {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  overflow: hidden;
+  background-color: rgba(var(--g-turquoise) / .18);
+  color: rgb(var(--g-ink-soft));
+  font-size: 1.125rem;
+}
+.gaudi-combo__avatar img { width: 100%; height: 100%; -o-object-fit: cover; object-fit: cover; }
+
+.gaudi-combo__body { display: flex; flex-direction: column; min-width: 0; }
+.gaudi-combo__name {
+  font-size: .9375rem;
+  font-weight: 600;
+  color: rgb(var(--g-ink));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gaudi-combo__check { color: rgb(var(--g-turquoise)); font-size: .8125rem; }
+.gaudi-combo__paymail {
+  font-size: .75rem;
+  color: rgb(var(--g-ink-soft));
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gaudi-combo__empty { padding: 1rem .875rem; }
+.gaudi-combo__empty-text {
+  font-size: .8125rem;
+  line-height: 1.5;
+  color: rgb(var(--g-ink-soft));
+}
+.gaudi-combo__link {
+  display: inline-block;
+  margin-top: .5rem;
+  font-size: .8125rem;
+  font-weight: 700;
+  color: rgb(var(--g-terracotta-ink));
+  text-decoration: underline;
+}
+
+/* --- モーダル内の残高表示 ---------------------------------------------------
+ * 送金画面で「$0」と断言するのが最悪（残高があるのに無いと伝わる）ので、
+ * 主役は BSV。USD は取れたときだけ添える。 */
+.gaudi-balance-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .125rem;
+  padding: .5rem .875rem;
+  border-radius: var(--g-leaf-sm-a);
+  background-color: rgba(var(--g-turquoise) / .14);
+}
+.gaudi-balance-chip__label {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgb(var(--g-ink-soft));
+}
+.gaudi-balance-chip__value {
+  font-size: .9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--g-ink));
+}
+.gaudi-balance-chip__sub { font-size: .6875rem; color: rgb(var(--g-ink-soft)); }
+/* --- 保管方式のラベル（NC / C） ---------------------------------------------
+ * 残高の見出しに添える陶片 1 枚。鍵がどこにあるかで送金も復元も手順が変わる
+ * ので、残高と同じ視野で分かるようにする（S006 §3「状態を曖昧にしない」）。
+ * 四隅の曲率は非対称（--g-leaf-sm-a）にして割れた陶片らしく、縁はその色の
+ * 濃い側で取る。金額の可読性を奪わないよう面積も彩度も控えめに保ち、
+ * ネオモルフィズムの影は掛けない。
+ * 色は 2 文字の補助であって唯一の手掛かりにはしない（色覚に依存させない）。
+ * だからアイコン（鍵／金庫）と title・sr-only の全文を必ず伴わせる。 */
+.gaudi-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .125rem .5rem;
+  border: 1px solid rgb(var(--g-grout));
+  border-radius: var(--g-leaf-sm-a);
+  font-size: .625rem;
+  font-weight: 800;
+  line-height: 1.7;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgb(var(--g-ink));
+}
+.gaudi-mode-badge .bi { font-size: .75rem; line-height: 1; }
+/* letter-spacing が最後の 1 文字の右にも空きを作り、C が左に寄って見える。
+   その分だけ戻して陶片の中央に据える。 */
+.gaudi-mode-badge__text { margin-right: -.12em; }
+/* 非管理型 — 鍵は手元。グエル公園のターコイズ */
+.gaudi-mode-badge--nc {
+  background-color: rgba(var(--g-turquoise) / .18);
+  border-color: rgba(var(--g-turquoise) / .55);
+}
+/* 管理型 — 鍵はサービス預かり。窯の金 */
+.gaudi-mode-badge--c {
+  background-color: rgba(var(--g-gold) / .20);
+  border-color: rgba(var(--g-gold) / .60);
+}
+/* --- paymail の綴り ---------------------------------------------------------
+ * 登録画面のプレビューと、登録完了画面での提示。どちらも「これがあなたの
+ * 支払い先になる」という一点を伝えるので、金額と同じく可読性を最優先にし、
+ * ネオモルフィズムの影は掛けない。長い綴りでも折り返して全文を見せる
+ * （途中で省略すると、写し間違いに気づけない）。 */
+.gaudi-paymail-preview {
+  font-weight: 700;
+  color: rgb(var(--g-terracotta-ink));
+  word-break: break-all;
+}
+.gaudi-paymail-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-top: .25rem;
+  padding: .75rem 1rem;
+  border-radius: var(--g-leaf-sm);
+  background-color: rgba(var(--g-turquoise) / .14);
+  text-align: left;
+}
+.gaudi-paymail-card__value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgb(var(--g-ink));
+  word-break: break-all;
+}
+.gaudi-paymail-card__copy {
+  flex: none;
+  padding: .375rem .5rem;
+  border-radius: var(--g-leaf-sm-a);
+  font-size: 1.125rem;
+  color: rgb(var(--g-terracotta-ink));
+}
+
+/* 完了 / 失敗の表現。成功はターコイズ、失敗はテラコッタの深い側で示し、
+   どちらも「同じ紫の丸」だった従来の曖昧さを解く（S006 §3）。 */
+.gaudi-result { text-align: center; padding: 1.5rem 1.25rem .5rem; }
+.gaudi-result__icon {
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  box-shadow: var(--g-clay-raised);
+}
+.gaudi-result__icon--ok   { background-color: rgba(var(--g-turquoise) / .18); color: rgb(var(--g-turquoise)); }
+.gaudi-result__icon--fail { background-color: rgba(var(--g-terracotta) / .16); color: rgb(var(--g-terracotta-ink)); }
+
+/* 送金結果モーダルは成功・失敗で使い回され、JS はアイコンのクラスだけを
+   差し替える（nc-send-ui.js: classList.toggle('bi-check2-circle'/'bi-dash-circle')）。
+   色をそのクラスに追従させることで、JS を変えずに状態が色でも伝わるようにする。 */
+.gaudi-result__icon.bi-check2-circle {
+  background-color: rgba(var(--g-turquoise) / .18);
+  color: rgb(var(--g-turquoise));
+}
+.gaudi-result__icon.bi-dash-circle,
+.gaudi-result__icon.bi-x-circle {
+  background-color: rgba(var(--g-terracotta) / .16);
+  color: rgb(var(--g-terracotta-ink));
+}
+.gaudi-result__title { font-size: 1.125rem; font-weight: 700; color: rgb(var(--g-ink)); }
+.gaudi-result__body  { font-size: .875rem; color: rgb(var(--g-ink-soft)); margin-top: .375rem; }
+
+/* 待機表示。従来は text-gray-200 + fill-yellow-600 の直書きで、ダークでも
+   同じ黄色が回っていた。目地色のリングをテラコッタが回る形に置き換える。 */
+.gaudi-spinner { color: rgba(var(--g-grout) / .7); fill: rgb(var(--g-terracotta)); }
+
+/* ============================================================================
+ * テーマ (style.css) との勝ち負けの調整
+ * ------------------------------------------------------------------------
+ * wallet-base.html は app.css を style.css より「前」に読む。詳細度が同じだと
+ * 後から読まれるテーマ側が勝つので、テーマの既存クラスと衝突する箇所だけ
+ * 詳細度を一段上げて書き直す。
+ * ========================================================================== */
+
+/* CTA。モーダル内の Send は .hs-dropdown-toggle も持っており、テーマ側の
+   同詳細度ルールに文字色を奪われて黒く出ていた（ダッシュボード上の Send は
+   白なのに、モーダル内だけ黒という不整合になっていた）。 */
+.s006-cta.s006-cta--primary { color: #fff; }
+.s006-cta.s006-cta--primary:hover,
+.s006-cta.s006-cta--primary:focus { color: #fff; }
+.s006-cta.s006-cta--ghost { color: rgb(var(--g-terracotta-ink)); }
+.s006-cta.s006-cta--ghost:hover,
+.s006-cta.s006-cta--ghost:focus { color: rgb(var(--g-terracotta-ink)); }
+
+/* ヘッダ。地が砂色になったのに白いままで、上端に一本の直線が走って見えていた
+   （「直線を排除する」という前提と正面から衝突する）。地に溶かし、境界は
+   目地の色でごく薄く引く。 */
+/* テーマ側は [data-header-styles="light"] .app-header に !important 付きで
+   白を指定している (0,2,0)。同じ !important 同士では詳細度勝負になるので、
+   html を足して (0,2,1) にして上回る。 */
+.app-header,
+.dark .app-header,
+html[data-header-styles] .app-header {
+  background-color: rgba(var(--g-sand) / .82) !important;
+  backdrop-filter: saturate(150%) blur(12px);
+  border-bottom-color: rgba(var(--g-grout) / .5) !important;
+}
+
+/* 取引種別のバッジ。送信は紫 (rgb(174,30,200)) の直書き、受信はテーマの
+   success 緑で、どちらもトレカディスの外にあった。陶片の色に入れ直す。 */
+.bg-outline-send,
+.badge.bg-outline-send {
+  border-color: rgba(var(--g-terracotta) / .55) !important;
+  color: rgb(var(--g-terracotta-ink)) !important;
+  background-color: rgba(var(--g-terracotta) / .10) !important;
+}
+.bg-outline-success,
+.badge.bg-outline-success {
+  border-color: rgba(var(--g-turquoise) / .55) !important;
+  color: rgb(var(--g-turquoise)) !important;
+  background-color: rgba(var(--g-turquoise) / .12) !important;
+}
+
+/* select の矢印。欄を「くぼみ」に作り替えたときにネイティブの三角が
+   地に紛れて見えなくなったので、明示的に描く。 */
+.gaudi-field__well select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+       appearance: none;
+  padding-right: 1.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1.5 L7 7.5 L13 1.5' fill='none' stroke='%237c6a5a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .25rem center;
+}
+
+/* 取引アイコンの色。views.py が Tailwind の直値（text-purple-500 等）を
+   埋め込んでいたのを、陶片のパレットに置き換えたもの。 */
+.gaudi-ic-in  { color: rgb(var(--g-turquoise)); }
+.gaudi-ic-out { color: rgb(var(--g-terracotta-ink)); }
+.gaudi-ic-bsv { color: rgb(var(--g-gold)); }
+.gaudi-ic-nft { color: rgb(var(--g-blue-l)); }
+
+/* --- 送金 CTA の無効状態 ---------------------------------------------------
+ * view_send.js は金額・宛先が空の間 sendBtn.disabled = true にしたうえで
+ * テーマの ti-btn-outline-light を足す。そのクラスは color:#000 !important を
+ * 持つため、CTA の白文字だけが奪われ「押せそうな塗りのまま文字が黒」という
+ * 状態になっていた（S006 §3「状態を曖昧にしない」に反する）。
+ * 有効時の文字色を取り戻したうえで、無効は「粘土のくぼみ」として表す。 */
+.s006-cta.s006-cta--primary.ti-btn-outline-light,
+.s006-cta.s006-cta--primary.ti-btn-outline-primary { color: #fff !important; }
+
+.s006-cta.s006-cta--primary:disabled,
+.s006-cta.s006-cta--primary[disabled] {
+  background-image: none;
+  background-color: rgba(var(--g-grout) / .6);
+  color: rgb(var(--g-ink-soft)) !important;
+  box-shadow: var(--g-clay-pressed);
+  cursor: not-allowed;
+  transform: none;
+}
+.s006-cta:disabled:hover, .s006-cta[disabled]:hover { transform: none; }
+
+/* ============================================================================
+ * 4. 構造的ナビゲーション — サイドメニュー本体
+ * ------------------------------------------------------------------------
+ * サグラダ・ファミリアの柱は、途中で枝分かれして天井を支える。
+ * メニューを「幹」と「枝」として組み直す:
+ *   幹  … メニュー左端を縦に貫く一本の柱。根元（下）ほど太い
+ *   枝  … 各項目が幹から曲線で分岐して伸びる（L 字ではなく円弧）
+ *   葉  … 現在地の項目が葉形に膨らみ、粘土のように浮き上がる
+ *
+ * ⚠ テーマは `.app-sidebar .side-menu__item`（詳細度 0,2,0）で書いており、
+ *   style.css は app.css より後に読まれる。ここは `html` を足して (0,2,1) にする。
+ * ========================================================================== */
+
+/* --- 地。平らな紺ではなく、石を切り出した深い地中海ブルー ------------------ */
+/* ⚠ 地の色は `[data-menu-styles=dark] .app-sidebar`（0,2,0）が押さえている。
+   html を足して (0,2,1) にしないと background-color は届かない
+   （background-image だけが乗って、色は紺のまま残る）。 */
+html[data-menu-styles] .app-sidebar,
+html .app-sidebar {
+  background-color: rgb(var(--g-earth-deep));
+  background-image:
+      /* 窯の中の熱。上から橙、下に向かって土に沈む */
+      radial-gradient(120% 50% at 50% -6%,  rgba(var(--g-orange) / .14) 0%, transparent 62%),
+      radial-gradient(100% 40% at 15% 104%, rgba(var(--g-terracotta) / .13) 0%, transparent 58%),
+      linear-gradient(178deg, rgb(var(--g-earth)) 0%, rgb(var(--g-earth-deep)) 100%);
+  border-inline-end-color: rgba(var(--g-gold) / .22);
+}
+html .app-sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--g-grain);
+  background-size: 160px 160px;
+  opacity: .16;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 0;
+}
+html .app-sidebar > * { position: relative; z-index: 1; }
+
+/* --- ヘッダ。ロゴの下にトレカディスの帯を通す ------------------------------ */
+html .app-sidebar .main-sidebar-header {
+  background-color: transparent;
+  border-bottom: 0;
+  position: relative;
+}
+html .app-sidebar .main-sidebar-header::after {
+  content: "";
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 0;
+  height: 8px;
+  border-radius: 999px;
+  background-color: rgba(var(--g-grout) / .35);
+  background-image: inherit;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='168' height='14' viewBox='0 0 168 14' preserveAspectRatio='none'%3E%3Cg%3E%3Cpath d='M0 1 L21 0 L23 13 L1 14 Z' fill='%23b54a28'/%3E%3Cpath d='M25 0 L44 2 L41 14 L24 13 Z' fill='%23e28a2e'/%3E%3Cpath d='M46 1 L61 0 L64 12 L44 14 Z' fill='%232f6c9c'/%3E%3Cpath d='M64 0 L84 1 L82 14 L65 13 Z' fill='%232e8b84'/%3E%3Cpath d='M86 2 L104 0 L106 13 L84 14 Z' fill='%23dea83e'/%3E%3Cpath d='M107 0 L124 2 L121 14 L105 12 Z' fill='%23b54a28'/%3E%3Cpath d='M126 1 L145 0 L143 13 L124 14 Z' fill='%232f6c9c'/%3E%3Cpath d='M147 0 L168 2 L166 14 L145 13 Z' fill='%23e28a2e'/%3E%3C/g%3E%3C/svg%3E") repeat-x center / 168px 100%;
+  opacity: .85;
+}
+
+/* --- 幹。メニューを縦に貫く柱。根元（下）ほど太く見えるよう不透明度を振る --- */
+html .app-sidebar .main-menu {
+  position: relative;
+  padding-inline-start: 1.5rem;
+}
+html .app-sidebar .main-menu::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 1.5rem;
+  top: .5rem;
+  bottom: .5rem;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg,
+      rgba(var(--g-sand) / 0)        0%,
+      rgba(var(--g-sand) / .28)     12%,
+      rgba(var(--g-gold) / .42)     58%,
+      rgba(var(--g-terracotta) / .62) 100%);
+  pointer-events: none;
+}
+
+/* --- 枝。幹から円弧を描いて各項目へ伸びる ---------------------------------- */
+html .app-sidebar .main-menu > .slide > .side-menu__item {
+  position: relative;
+  margin-inline-start: .5rem;
+  padding-inline-start: 1rem;
+  border-radius: var(--g-leaf-sm);
+  color: rgba(var(--g-sand) / .78);
+  transition: background-color .2s ease, color .2s ease,
+              box-shadow .2s ease, transform .2s cubic-bezier(.34, 1.56, .64, 1);
+}
+/* 分岐の円弧。左と下の罫線＋左下の角丸で「幹から曲がって出る枝」になる */
+html .app-sidebar .main-menu > .slide > .side-menu__item::before {
+  content: "";
+  position: absolute;
+  /* 幹の左端は ul の padding-inline-start (1.5rem) と一致し、それは li の左端でもある。
+     項目 <a> は そこから「li の padding-left (12px, テーマ) + 自分の margin (.5rem)」
+     ぶん右にある。つまり枝は a の左端から -20px 引けば、ちょうど幹の左端に重なる。
+     ⚠ ここを実測なしで決め打ちすると必ずずれる（-1.375rem にしていたときは
+        幹 24.00–26.00 に対して枝 22.00–24.00 で 2px 外れ、線が二重に見えていた）。 */
+  inset-inline-start: calc(-.5rem - 12px);
+  top: -.55rem;
+  width: calc(.5rem + 12px);
+  height: 1.75rem;
+  border-inline-start: 2px solid rgba(var(--g-gold) / .40);
+  border-bottom: 2px solid rgba(var(--g-gold) / .40);
+  border-end-start-radius: .875rem;
+  border-top: 0;
+  border-inline-end: 0;
+  transition: border-color .2s ease;
+  pointer-events: none;
+}
+
+/* --- 葉。現在地は葉形に膨らみ、粘土のように浮く --------------------------- */
+html .app-sidebar .main-menu > .slide > .side-menu__item.active,
+html .app-sidebar .main-menu > .slide > .side-menu__item:hover {
+  background-color: rgba(var(--g-sand) / .13);
+  color: rgb(var(--g-sand));
+  border-radius: var(--g-leaf-sm);
+  box-shadow:
+      inset 0 0 0 1px rgba(var(--g-gold) / .34),
+      inset 0 1px 0 rgba(255 255 255 / .14),
+      0 12px 24px -14px rgba(0 0 0 / .85);
+  transform: translateX(2px);
+}
+html .app-sidebar .main-menu > .slide > .side-menu__item.active::before,
+html .app-sidebar .main-menu > .slide > .side-menu__item:hover::before {
+  border-color: rgb(var(--g-orange));
+}
+/* テーマは active/hover に白い縦棒 (::before の border) を足す。
+   枝と二重になるので、そちらの装飾だけ打ち消す。 */
+html .app-sidebar .side-menu__item.active::after,
+html .app-sidebar .side-menu__item:hover::after { display: none; }
+
+/* ラベルはテーマが青灰 `rgb(163 174 209)` を `.app-sidebar .side-menu__label`（0,2,0）で
+   直接当てているため、項目側の color を継承しない。地を土色にすると寒色が浮くので、
+   砂の側に引き直す。 */
+html .app-sidebar .side-menu__label { color: rgba(var(--g-sand) / .82); }
+html .app-sidebar .side-menu__item.active .side-menu__label,
+html .app-sidebar .side-menu__item:hover .side-menu__label { color: rgb(var(--g-sand)); }
+html .app-sidebar .slide-menu.child1 .side-menu__item { color: rgba(var(--g-sand) / .68); }
+html .app-sidebar .category-name { color: inherit; }
+
+html .app-sidebar .side-menu__icon { color: rgba(var(--g-gold) / .95); }
+html .app-sidebar .side-menu__item.active .side-menu__icon,
+html .app-sidebar .side-menu__item:hover .side-menu__icon { color: rgb(var(--g-orange)); }
+html .app-sidebar .side-menu__angle { color: rgba(var(--g-sand) / .45); }
+
+/* --- カテゴリ見出し。陶片を一つ置いて区切る -------------------------------- */
+/* 陶片は幹の「分岐点」として幹の上に置く。li の左端が幹の位置なので、
+   陶片の半径分だけ外へずらして中心を合わせる（内側に置くとラベルに重なる）。 */
+html .app-sidebar .slide__category {
+  padding-inline-start: 1.25rem;
+  opacity: 1;
+  color: rgba(var(--g-sand) / .58);
+  letter-spacing: .14em;
+}
+html .app-sidebar .slide__category::before {
+  content: "";
+  position: absolute;
+  /* li の左端 = 幹の左端。幹は 2px 幅なのでその中心は +1px。
+     陶片(9px)の中心をそこへ合わせる → -4.5px + 1px = -3.5px */
+  inset-inline-start: -3.5px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  background-color: rgb(var(--g-gold));
+  opacity: .8;
+}
+
+/* --- サブメニュー。枝からさらに細い枝が出る -------------------------------- */
+/* 子の幹と枝は、テーマが持つ余白に噛み合わせる必要がある。実測（390px）で
+     .slide-menu.child1 の padding-left = 28px（= 1.75rem）
+     その中の li の padding-left  = 24px（= 1.5rem）
+   なので、子の幹を 1.75rem に立てると li の左端に一致し、枝を -1.5rem から
+   引けば幹まで届く。目分量で置くと幹と枝が繋がらない（53.6px と 77.6px で
+   離れていた）。 */
+html .app-sidebar .slide-menu.child1 {
+  position: relative;
+}
+html .app-sidebar .slide-menu.child1::before {
+  content: "";
+  position: absolute;
+  /* 枝は子項目(x60)の -24px = x36 から始まり、これは .slide-menu.child1 の左端と一致する。
+     以前は 1.75rem(=x64) に立てていたため、幹と枝が 28px 離れて途切れていた。 */
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 40%;
+  width: 1px;
+  background: linear-gradient(180deg,
+      rgba(var(--g-gold) / .45) 0%, rgba(var(--g-gold) / 0) 100%);
+  pointer-events: none;
+}
+html .app-sidebar .slide-menu.child1 .side-menu__item {
+  position: relative;
+  padding-inline-start: .75rem;
+  color: rgba(var(--g-sand) / .62);
+  border-radius: var(--g-leaf-sm-a);
+}
+/* ⚠ テーマはサブ項目の ::before を「丸ポチ」として使っている
+   （`.app-sidebar .slide-menu.child1 .side-menu__item::before` に
+    width/height .3rem・border-radius 9999px・border-color、
+    さらに `.side-menu__item:hover::before` で border-color を白に）。
+   枝も同じ ::before なので、打ち消さないと丸ポチの角丸と白が混ざり、
+   ホバー時に**白い楕円の弧**が出る。
+   そこで border-radius を物理プロパティで一度 0 に潰してから左下だけ丸め、
+   色・太さも hover / active を含めて明示する（論理プロパティだけだと
+   テーマの物理ショートハンドが残る角がある）。 */
+html .app-sidebar .slide-menu.child1 .side-menu__item::before,
+html .app-sidebar .slide-menu.child1 .side-menu__item.active::before,
+html .app-sidebar .slide-menu.child1 .side-menu__item:hover::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -1.5rem;
+  top: -.5rem;
+  width: 1.5rem;
+  height: 1.15rem;
+  border-style: solid;
+  border-width: 0 0 1px 1px;
+  border-color: rgba(var(--g-gold) / .45);
+  border-radius: 0;
+  border-end-start-radius: .75rem;
+  background: none;
+  pointer-events: none;
+}
+/* ホバー/現在地の丸ポチは `border-radius: 9999px !important` /
+   `border-color: #fff !important` / `border-width: 1px !important` で来る。
+   !important は詳細度より先に効くので、こちらも !important で並べないと勝てない
+   （0,5,1 と 0,5,0 なので、同じ !important 同士なら詳細度でこちらが勝つ）。
+   border-radius を !important で潰したら、左下の丸めも !important にしないと
+   自分のショートハンドに負ける。 */
+html .app-sidebar .slide-menu.child1 .side-menu__item.active::before,
+html .app-sidebar .slide-menu.child1 .side-menu__item:hover::before {
+  border-width: 0 0 1px 1px !important;
+  border-color: rgb(var(--g-orange)) !important;
+  border-radius: 0 !important;
+  border-end-start-radius: .75rem !important;
+}
+html .app-sidebar .slide-menu.child1 .side-menu__item.active,
+html .app-sidebar .slide-menu.child1 .side-menu__item:hover {
+  background-color: rgba(var(--g-sand) / .10);
+  color: rgb(var(--g-sand));
+}
+/* 見出し行（リンクではない）は枝を出さない */
+html .app-sidebar .slide-menu.child1 .side-menu__label1 { color: rgba(var(--g-sand) / .38); }
+html .app-sidebar .slide-menu.child1 .side-menu__label1::before { display: none; }
+
+/* --- アイコンのみに畳まれた状態では幹も枝も成立しないので消す -------------- */
+[data-toggled$="close"] .app-sidebar .main-menu::before,
+[data-toggled$="closed"] .app-sidebar .main-menu::before,
+[data-toggled$="close"] .app-sidebar .side-menu__item::before,
+[data-toggled$="closed"] .app-sidebar .side-menu__item::before {
+  display: none;
+}
+/* ただし overlay 方式（この FE の既定）では data-toggled=close でも
+   サイドバーは 240px のまま画面外に退避するだけなので、枝は残す。 */
+[data-vertical-style="overlay"] .app-sidebar .main-menu::before,
+[data-vertical-style="overlay"] .app-sidebar .side-menu__item::before {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .app-sidebar .main-menu > .slide > .side-menu__item { transition: none; }
+  html .app-sidebar .main-menu > .slide > .side-menu__item.active,
+  html .app-sidebar .main-menu > .slide > .side-menu__item:hover { transform: none; }
+}
+
+/* --- ボトムタブの再スキン（S006 §2 / ガウディ層） --------------------------
+ * 骨格は s006.css。ここでは地と現在地の色だけをガウディの語彙へ寄せる。 */
+.s006-tabbar {
+  background-color: rgb(var(--g-surface));
+  border-top-color: rgba(var(--g-grout) / .5);
+}
+
+.s006-tabbar__item { color: rgb(var(--g-ink-soft)); }
+.s006-tabbar__item:hover { color: rgb(var(--g-terracotta-ink)); }
+
+.s006-tabbar__item.is-active {
+  color: rgb(var(--g-terracotta-ink));
+  background-color: rgba(var(--g-terracotta) / .12);
+  /* 現在地は「葉」として少し膨らませる（サイドバーの現在地と同じ語彙） */
+  border-radius: var(--g-leaf-sm) var(--g-leaf-sm) 0 0;
+}
+
+/* 押した直後（遷移待ち）。現在地と同じ色を先に与えて「受け取った」ことを
+   即座に返す。まだ現在地ではないので、葉のふくらみ（border-radius）は出さない。 */
+.s006-tabbar__item.is-pending {
+  color: rgb(var(--g-terracotta-ink));
+  background-color: rgba(var(--g-terracotta) / .12);
+}
+
+/* 押したタブのアイコンだけ、窯の中で息をするように脈打たせる。
+   バーは画面上端にあり視線が遠いので、指の下にも手応えを残す。 */
+.s006-tabbar__item.is-pending i {
+  animation: gaudi-tab-pulse 1.1s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+@keyframes gaudi-tab-pulse {
+  50% { transform: scale(1.18); opacity: .72; }
+}
+
+/* ============================================================================
+ * 画面遷移の待ち — ボトムタブは素の <a> なので、押してから次の HTML が
+ * 描かれるまでの約1秒、画面はまったく変化しない（＝固まって見える）。
+ * サインインと同じトレンカディスのバーを、画面の上端に細く積み上げる。
+ *
+ * サインインのバー（.gaudi-progress）との違い:
+ *   - 完了は「次の文書が描かれた瞬間」なので、100% を出す機会が無い。
+ *     見積もりは 90% に漸近させたまま、遷移で丸ごと消える。
+ *   - 文言は持たない。1秒の待ちに文章を出すと、読む前に消えて雑音になる。
+ * ========================================================================== */
+.gaudi-navprogress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;             /* タブバー(40)より上。モーダル(70)より下 */
+  height: 3px;
+  overflow: hidden;
+  background-color: rgba(var(--g-grout) / .35);
+  opacity: 0;
+  transition: opacity .18s ease;
+  pointer-events: none;
+}
+.gaudi-navprogress[hidden] { display: none; }
+.gaudi-navprogress.is-running { opacity: 1; }
+
+.gaudi-navprogress__bar {
+  /* 面と光沢は .gaudi-progress__bar と共有。3px の帯なので目地だけ細かくする */
+  background-size: auto, auto;
+  transition: width .25s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* ============================================================================
+ * 待ちの可視化 — サインインの数秒を「フリーズ」ではなく「進行」に見せる。
+ * ------------------------------------------------------------------------
+ * Sign In は BFF → BE の往復があり、体感で数秒かかる。従来は押しても
+ * ボタンが沈むだけで画面が固まったように見え、二度押しも起きていた
+ * （S006 §4-4「非同期状態を必ず可視化」に反していた）。
+ *
+ * 表現はトレンカディス。目地で割れた陶片が左から積み上がっていくバーとして
+ * 描く。所要時間は事前に分からないので、幅は JS が「確度つきの見積もり」で
+ * 進め（gaudi-progress.js）、CSS は陶片の質感と、幅が止まっている間も
+ * 生きていることを伝える光沢だけを受け持つ。
+ * ========================================================================== */
+.gaudi-progress { margin-top: .875rem; }
+.gaudi-progress[hidden] { display: none; }
+
+.gaudi-progress__track {
+  position: relative;
+  height: 14px;
+  overflow: hidden;
+  border-radius: var(--g-leaf-sm);
+  /* 地は目地の色。バーが無い区間も「これから積む場所」として読める */
+  background-color: rgba(var(--g-grout) / .45);
+  box-shadow: var(--g-clay-pressed);
+}
+
+.gaudi-progress__bar,
+.gaudi-navprogress__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: inherit;
+  background-image:
+      /* 目地。斜めに走らせて陶片の割れ目に見せる */
+      repeating-linear-gradient(115deg,
+          rgba(var(--g-surface) / .55) 0 2px, transparent 2px 17px),
+      linear-gradient(96deg,
+          rgb(var(--g-gold)) 0%, rgb(var(--g-orange)) 40%, rgb(var(--g-terracotta)) 100%);
+  box-shadow:
+      inset 0 1px 0 rgba(255 255 255 / .38),
+      0 0 14px -4px rgba(var(--g-terracotta) / .85);
+  transition: width .5s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* 見積もりが踊り場に入って幅が動かない間の「生存表示」。
+   これが無いと、待ちの後半でまた固まったように見える。 */
+.gaudi-progress__bar::after,
+.gaudi-navprogress__bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(100deg,
+      transparent 0%, rgba(255 255 255 / .45) 46%, transparent 92%);
+  transform: translateX(-100%);
+  animation: gaudi-sheen 1.5s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+@keyframes gaudi-sheen { to { transform: translateX(100%); } }
+
+/* 完了したら光沢は止める（動き続けると「まだ終わっていない」に読める） */
+.gaudi-progress.is-done .gaudi-progress__bar::after { animation: none; opacity: 0; }
+
+.gaudi-progress__label {
+  margin-top: .5rem;
+  text-align: center;
+  min-height: 1.25em;
+}
+
+/* --- 実行中の CTA ---------------------------------------------------------
+ * ラベルを差し替え、石ころ型の弧を回す。押せないことは色ではなく
+ * 「カーソル・aria-disabled・二重送信の抑止」で伝える（塗りを薄くすると
+ * 主要 CTA の高コントラストという前提を崩すため）。 */
+.s006-cta.is-busy {
+  cursor: progress;
+  /* 応答後〜遷移までのわずかな隙間で再度押されないように。
+     disabled は htmx (hx-disabled-elt) が応答時点で外してしまう。 */
+  pointer-events: none;
+}
+
+/* 実行中は hx-disabled-elt により disabled も付く。ただし「実行中」は
+   「今は押せない」（＝上の粘土のくぼみ）とは別の状態で、灰色に落とすと
+   押した操作が拒否されたようにも読める。塗りは保ったまま、弧とバーで
+   進行だけを伝える。 */
+.s006-cta.s006-cta--primary.is-busy,
+.s006-cta.s006-cta--primary.is-busy:disabled,
+.s006-cta.s006-cta--primary.is-busy[disabled] {
+  background-image: linear-gradient(152deg,
+      rgb(var(--g-orange)) 0%, rgb(var(--g-terracotta)) 58%, rgb(var(--g-terracotta-d)) 100%);
+  background-color: transparent;
+  color: #fff !important;
+  box-shadow:
+      0 12px 24px -12px rgba(var(--g-terracotta-d) / .85),
+      inset 0 1px 0 rgba(255 255 255 / .34),
+      inset 0 -2px 0 rgba(var(--g-terracotta-d) / .55);
+  cursor: progress;
+  transform: none;
+}
+
+.gaudi-cta-spinner {
+  display: none;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  border: 2.5px solid rgba(255 255 255 / .36);
+  border-top-color: #fff;
+  /* 円ではなく、他の陶片と同じ石ころの輪郭で回す */
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  animation: gaudi-spin 1s cubic-bezier(.62, .06, .4, .96) infinite;
+}
+.s006-cta.is-busy .gaudi-cta-spinner { display: block; }
+.s006-cta--ghost .gaudi-cta-spinner {
+  border-color: rgba(var(--g-terracotta) / .3);
+  border-top-color: rgb(var(--g-terracotta-ink));
+}
+@keyframes gaudi-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 幅の変化＝進捗そのものなので残す。装飾の回転と光沢だけ止める。 */
+  .gaudi-progress__bar::after,
+  .gaudi-navprogress__bar::after { animation: none; opacity: 0; }
+  .gaudi-cta-spinner { animation: none; border-top-color: rgba(255 255 255 / .36); }
+  .s006-tabbar__item.is-pending i { animation: none; }
+}
+
+/* --- iPhone(Safari) の「タップすると画面が拡大して横にはみ出す」を止める -----
+ * iOS Safari は font-size が 16px 未満の入力欄にフォーカスすると、読める大きさ
+ * まで**ページごと**拡大する。拡大は自動では戻らないので、以後その画面は横に
+ * はみ出したままになる（Setting の Current Password などで報告された）。
+ * テーマの .form-control は 0.875rem、.form-control-lg は .75rem、class の付いて
+ * いない素の input は UA 既定（WebKit は 13px 前後）で、いずれも 16px 未満。
+ * ガウディの .gaudi-field__well input が 1rem なのは元々この理由。
+ *
+ * 幅の狭い端末だけ 16px に上げる。デスクトップの見た目は変えない。
+ * `.form-control-sm` など意図的に小さくしている装飾も、入力欄である以上
+ * 同じ罠を踏むのでまとめて上げる。 */
+@media (max-width: 767.98px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea,
+  .form-control,
+  .form-control-lg,
+  .form-control-sm,
+  .form-select {
+    font-size: 16px;
+  }
+}
+*, ::before, ::after {
+  --tw-border-spacing-x: 0;
+  --tw-border-spacing-y: 0;
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+  --tw-pan-x:  ;
+  --tw-pan-y:  ;
+  --tw-pinch-zoom:  ;
+  --tw-scroll-snap-strictness: proximity;
+  --tw-gradient-from-position:  ;
+  --tw-gradient-via-position:  ;
+  --tw-gradient-to-position:  ;
+  --tw-ordinal:  ;
+  --tw-slashed-zero:  ;
+  --tw-numeric-figure:  ;
+  --tw-numeric-spacing:  ;
+  --tw-numeric-fraction:  ;
+  --tw-ring-inset:  ;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-offset-color: #fff;
+  --tw-ring-color: rgb(59 130 246 / 0.5);
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  --tw-blur:  ;
+  --tw-brightness:  ;
+  --tw-contrast:  ;
+  --tw-grayscale:  ;
+  --tw-hue-rotate:  ;
+  --tw-invert:  ;
+  --tw-saturate:  ;
+  --tw-sepia:  ;
+  --tw-drop-shadow:  ;
+  --tw-backdrop-blur:  ;
+  --tw-backdrop-brightness:  ;
+  --tw-backdrop-contrast:  ;
+  --tw-backdrop-grayscale:  ;
+  --tw-backdrop-hue-rotate:  ;
+  --tw-backdrop-invert:  ;
+  --tw-backdrop-opacity:  ;
+  --tw-backdrop-saturate:  ;
+  --tw-backdrop-sepia:  ;
+  --tw-contain-size:  ;
+  --tw-contain-layout:  ;
+  --tw-contain-paint:  ;
+  --tw-contain-style:  ;
+}
+::backdrop {
+  --tw-border-spacing-x: 0;
+  --tw-border-spacing-y: 0;
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+  --tw-pan-x:  ;
+  --tw-pan-y:  ;
+  --tw-pinch-zoom:  ;
+  --tw-scroll-snap-strictness: proximity;
+  --tw-gradient-from-position:  ;
+  --tw-gradient-via-position:  ;
+  --tw-gradient-to-position:  ;
+  --tw-ordinal:  ;
+  --tw-slashed-zero:  ;
+  --tw-numeric-figure:  ;
+  --tw-numeric-spacing:  ;
+  --tw-numeric-fraction:  ;
+  --tw-ring-inset:  ;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-offset-color: #fff;
+  --tw-ring-color: rgb(59 130 246 / 0.5);
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  --tw-blur:  ;
+  --tw-brightness:  ;
+  --tw-contrast:  ;
+  --tw-grayscale:  ;
+  --tw-hue-rotate:  ;
+  --tw-invert:  ;
+  --tw-saturate:  ;
+  --tw-sepia:  ;
+  --tw-drop-shadow:  ;
+  --tw-backdrop-blur:  ;
+  --tw-backdrop-brightness:  ;
+  --tw-backdrop-contrast:  ;
+  --tw-backdrop-grayscale:  ;
+  --tw-backdrop-hue-rotate:  ;
+  --tw-backdrop-invert:  ;
+  --tw-backdrop-opacity:  ;
+  --tw-backdrop-saturate:  ;
+  --tw-backdrop-sepia:  ;
+  --tw-contain-size:  ;
+  --tw-contain-layout:  ;
+  --tw-contain-paint:  ;
+  --tw-contain-style:  ;
+}
+/* ! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com *//*
+1. Prevent padding and border from affecting element width. (https://github.com/mozdevs/cssremedy/issues/4)
+2. Allow adding a border to an element by just adding a border-width. (https://github.com/tailwindcss/tailwindcss/pull/116)
+*/
+
+*,
+::before,
+::after {
+  box-sizing: border-box; /* 1 */
+  border-width: 0; /* 2 */
+  border-style: solid; /* 2 */
+  border-color: #e5e7eb; /* 2 */
+}
+
+::before,
+::after {
+  --tw-content: '';
+}
+
+/*
+1. Use a consistent sensible line-height in all browsers.
+2. Prevent adjustments of font size after orientation changes in iOS.
+3. Use a more readable tab size.
+4. Use the user's configured `sans` font-family by default.
+5. Use the user's configured `sans` font-feature-settings by default.
+6. Use the user's configured `sans` font-variation-settings by default.
+7. Disable tap highlights on iOS
+*/
+
+html,
+:host {
+  line-height: 1.5; /* 1 */
+  -webkit-text-size-adjust: 100%; /* 2 */
+  -moz-tab-size: 4; /* 3 */
+  -o-tab-size: 4;
+     tab-size: 4; /* 3 */
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; /* 4 */
+  font-feature-settings: normal; /* 5 */
+  font-variation-settings: normal; /* 6 */
+  -webkit-tap-highlight-color: transparent; /* 7 */
+}
+
+/*
+1. Remove the margin in all browsers.
+2. Inherit line-height from `html` so users can set them as a class directly on the `html` element.
+*/
+
+body {
+  margin: 0; /* 1 */
+  line-height: inherit; /* 2 */
+}
+
+/*
+1. Add the correct height in Firefox.
+2. Correct the inheritance of border color in Firefox. (https://bugzilla.mozilla.org/show_bug.cgi?id=190655)
+3. Ensure horizontal rules are visible by default.
+*/
+
+hr {
+  height: 0; /* 1 */
+  color: inherit; /* 2 */
+  border-top-width: 1px; /* 3 */
+}
+
+/*
+Add the correct text decoration in Chrome, Edge, and Safari.
+*/
+
+abbr:where([title]) {
+  -webkit-text-decoration: underline dotted;
+          text-decoration: underline dotted;
+}
+
+/*
+Remove the default font size and weight for headings.
+*/
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/*
+Reset links to optimize for opt-in styling instead of opt-out.
+*/
+
+a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+/*
+Add the correct font weight in Edge and Safari.
+*/
+
+b,
+strong {
+  font-weight: bolder;
+}
+
+/*
+1. Use the user's configured `mono` font-family by default.
+2. Use the user's configured `mono` font-feature-settings by default.
+3. Use the user's configured `mono` font-variation-settings by default.
+4. Correct the odd `em` font sizing in all browsers.
+*/
+
+code,
+kbd,
+samp,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; /* 1 */
+  font-feature-settings: normal; /* 2 */
+  font-variation-settings: normal; /* 3 */
+  font-size: 1em; /* 4 */
+}
+
+/*
+Add the correct font size in all browsers.
+*/
+
+small {
+  font-size: 80%;
+}
+
+/*
+Prevent `sub` and `sup` elements from affecting the line height in all browsers.
+*/
+
+sub,
+sup {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+sub {
+  bottom: -0.25em;
+}
+
+sup {
+  top: -0.5em;
+}
+
+/*
+1. Remove text indentation from table contents in Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=999088, https://bugs.webkit.org/show_bug.cgi?id=201297)
+2. Correct table border color inheritance in all Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=935729, https://bugs.webkit.org/show_bug.cgi?id=195016)
+3. Remove gaps between table borders by default.
+*/
+
+table {
+  text-indent: 0; /* 1 */
+  border-color: inherit; /* 2 */
+  border-collapse: collapse; /* 3 */
+}
+
+/*
+1. Change the font styles in all browsers.
+2. Remove the margin in Firefox and Safari.
+3. Remove default padding in all browsers.
+*/
+
+button,
+input,
+optgroup,
+select,
+textarea {
+  font-family: inherit; /* 1 */
+  font-feature-settings: inherit; /* 1 */
+  font-variation-settings: inherit; /* 1 */
+  font-size: 100%; /* 1 */
+  font-weight: inherit; /* 1 */
+  line-height: inherit; /* 1 */
+  letter-spacing: inherit; /* 1 */
+  color: inherit; /* 1 */
+  margin: 0; /* 2 */
+  padding: 0; /* 3 */
+}
+
+/*
+Remove the inheritance of text transform in Edge and Firefox.
+*/
+
+button,
+select {
+  text-transform: none;
+}
+
+/*
+1. Correct the inability to style clickable types in iOS and Safari.
+2. Remove default button styles.
+*/
+
+button,
+input:where([type='button']),
+input:where([type='reset']),
+input:where([type='submit']) {
+  -webkit-appearance: button; /* 1 */
+  background-color: transparent; /* 2 */
+  background-image: none; /* 2 */
+}
+
+/*
+Use the modern Firefox focus style for all focusable elements.
+*/
+
+:-moz-focusring {
+  outline: auto;
+}
+
+/*
+Remove the additional `:invalid` styles in Firefox. (https://github.com/mozilla/gecko-dev/blob/2f9eacd9d3d995c937b4251a5557d95d494c9be1/layout/style/res/forms.css#L728-L737)
+*/
+
+:-moz-ui-invalid {
+  box-shadow: none;
+}
+
+/*
+Add the correct vertical alignment in Chrome and Firefox.
+*/
+
+progress {
+  vertical-align: baseline;
+}
+
+/*
+Correct the cursor style of increment and decrement buttons in Safari.
+*/
+
+::-webkit-inner-spin-button,
+::-webkit-outer-spin-button {
+  height: auto;
+}
+
+/*
+1. Correct the odd appearance in Chrome and Safari.
+2. Correct the outline style in Safari.
+*/
+
+[type='search'] {
+  -webkit-appearance: textfield; /* 1 */
+  outline-offset: -2px; /* 2 */
+}
+
+/*
+Remove the inner padding in Chrome and Safari on macOS.
+*/
+
+::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+/*
+1. Correct the inability to style clickable types in iOS and Safari.
+2. Change font properties to `inherit` in Safari.
+*/
+
+::-webkit-file-upload-button {
+  -webkit-appearance: button; /* 1 */
+  font: inherit; /* 2 */
+}
+
+/*
+Add the correct display in Chrome and Safari.
+*/
+
+summary {
+  display: list-item;
+}
+
+/*
+Removes the default spacing and border for appropriate elements.
+*/
+
+blockquote,
+dl,
+dd,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+hr,
+figure,
+p,
+pre {
+  margin: 0;
+}
+
+fieldset {
+  margin: 0;
+  padding: 0;
+}
+
+legend {
+  padding: 0;
+}
+
+ol,
+ul,
+menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+Reset default styling for dialogs.
+*/
+dialog {
+  padding: 0;
+}
+
+/*
+Prevent resizing textareas horizontally by default.
+*/
+
+textarea {
+  resize: vertical;
+}
+
+/*
+1. Reset the default placeholder opacity in Firefox. (https://github.com/tailwindlabs/tailwindcss/issues/3300)
+2. Set the default placeholder color to the user's configured gray 400 color.
+*/
+
+input::-moz-placeholder, textarea::-moz-placeholder {
+  opacity: 1; /* 1 */
+  color: #9ca3af; /* 2 */
+}
+
+input::placeholder,
+textarea::placeholder {
+  opacity: 1; /* 1 */
+  color: #9ca3af; /* 2 */
+}
+
+/*
+Set the default cursor for buttons.
+*/
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+/*
+Make sure disabled buttons don't get the pointer cursor.
+*/
+:disabled {
+  cursor: default;
+}
+
+/*
+1. Make replaced elements `display: block` by default. (https://github.com/mozdevs/cssremedy/issues/14)
+2. Add `vertical-align: middle` to align replaced elements more sensibly by default. (https://github.com/jensimmons/cssremedy/issues/14#issuecomment-634934210)
+   This can trigger a poorly considered lint error in some tools but is included by design.
+*/
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block; /* 1 */
+  vertical-align: middle; /* 2 */
+}
+
+/*
+Constrain images and videos to the parent width and preserve their intrinsic aspect ratio. (https://github.com/mozdevs/cssremedy/issues/14)
+*/
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Make elements with the HTML hidden attribute stay hidden by default */
+[hidden]:where(:not([hidden="until-found"])) {
+  display: none;
+}
+.container {
+  width: 100%;
+}
+@media (min-width: 640px) {
+
+  .container {
+    max-width: 640px;
+  }
+}
+@media (min-width: 768px) {
+
+  .container {
+    max-width: 768px;
+  }
+}
+@media (min-width: 1024px) {
+
+  .container {
+    max-width: 1024px;
+  }
+}
+@media (min-width: 1280px) {
+
+  .container {
+    max-width: 1280px;
+  }
+}
+@media (min-width: 1536px) {
+
+  .container {
+    max-width: 1536px;
+  }
+}
+.static {
+  position: static;
+}
+.fixed {
+  position: fixed;
+}
+.relative {
+  position: relative;
+}
+.inset-0 {
+  inset: 0px;
+}
+.-z-50 {
+  z-index: -50;
+}
+.z-0 {
+  z-index: 0;
+}
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+.\!-mt-3 {
+  margin-top: -0.75rem !important;
+}
+.-mt-1 {
+  margin-top: -0.25rem;
+}
+.mb-5 {
+  margin-bottom: 1.25rem;
+}
+.mb-6 {
+  margin-bottom: 1.5rem;
+}
+.me-0 {
+  margin-inline-end: 0px;
+}
+.me-2 {
+  margin-inline-end: 0.5rem;
+}
+.ms-2 {
+  margin-inline-start: 0.5rem;
+}
+.mt-10 {
+  margin-top: 2.5rem;
+}
+.mt-auto {
+  margin-top: auto;
+}
+.block {
+  display: block;
+}
+.inline-block {
+  display: inline-block;
+}
+.inline {
+  display: inline;
+}
+.flex {
+  display: flex;
+}
+.\!inline-flex {
+  display: inline-flex !important;
+}
+.inline-flex {
+  display: inline-flex;
+}
+.hidden {
+  display: none;
+}
+.\!h-\[3\.75rem\] {
+  height: 3.75rem !important;
+}
+.h-10 {
+  height: 2.5rem;
+}
+.w-10 {
+  width: 2.5rem;
+}
+.w-\[11rem\] {
+  width: 11rem;
+}
+.w-full {
+  width: 100%;
+}
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+.\!items-center {
+  align-items: center !important;
+}
+.items-center {
+  align-items: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.\!gap-2 {
+  gap: 0.5rem !important;
+}
+.\!gap-x-0 {
+  -moz-column-gap: 0px !important;
+       column-gap: 0px !important;
+}
+.overflow-hidden {
+  overflow: hidden;
+}
+.\!rounded-full {
+  border-radius: 9999px !important;
+}
+.rounded-full {
+  border-radius: 9999px;
+}
+.rounded-sm {
+  border-radius: 0.125rem;
+}
+.\!border-0 {
+  border-width: 0px !important;
+}
+.border-0 {
+  border-width: 0px;
+}
+.border-t {
+  border-top-width: 1px;
+}
+.border-gray-300 {
+  --tw-border-opacity: 1;
+  border-color: rgb(209 213 219 / var(--tw-border-opacity, 1));
+}
+.bg-gray-200 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(229 231 235 / var(--tw-bg-opacity, 1));
+}
+.object-cover {
+  -o-object-fit: cover;
+     object-fit: cover;
+}
+.\!p-0 {
+  padding: 0px !important;
+}
+.\!p-\[0\.65rem\] {
+  padding: 0.65rem !important;
+}
+.\!px-\[0\.45rem\] {
+  padding-left: 0.45rem !important;
+  padding-right: 0.45rem !important;
+}
+.\!py-\[0\.25rem\] {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+.px-2 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+.pe-\[1rem\] {
+  padding-inline-end: 1rem;
+}
+.ps-\[0\.725rem\] {
+  padding-inline-start: 0.725rem;
+}
+.pt-0 {
+  padding-top: 0px;
+}
+.text-center {
+  text-align: center;
+}
+.align-middle {
+  vertical-align: middle;
+}
+.\!text-\[0\.75em\] {
+  font-size: 0.75em !important;
+}
+.\!text-\[0\.8125rem\] {
+  font-size: 0.8125rem !important;
+}
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+.text-\[0\.75em\] {
+  font-size: 0.75em;
+}
+.text-\[1\.125rem\] {
+  font-size: 1.125rem;
+}
+.text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.font-medium {
+  font-weight: 500;
+}
+.font-normal {
+  font-weight: 400;
+}
+.font-semibold {
+  font-weight: 600;
+}
+.ordinal {
+  --tw-ordinal: ordinal;
+  font-variant-numeric: var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction);
+}
+.leading-normal {
+  line-height: 1.5;
+}
+.text-\[0\.813\] {
+  color: 0.813;
+}
+.text-gray-500 {
+  --tw-text-opacity: 1;
+  color: rgb(107 114 128 / var(--tw-text-opacity, 1));
+}
+.opacity-\[0\.7\] {
+  opacity: 0.7;
+}
+.\!shadow-none {
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow) !important;
+}
+.shadow-\[0_0_0\.4rem_rgba\(0\2c 0\2c 0\2c 0\.1\)\] {
+  --tw-shadow: 0 0 0.4rem rgba(0,0,0,0.1);
+  --tw-shadow-colored: 0 0 0.4rem var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+.\!shadow-transparent {
+  --tw-shadow-color: transparent !important;
+  --tw-shadow: var(--tw-shadow-colored) !important;
+}
+.filter {
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+.transition {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.\[--placement\:bottom-left\] {
+  --placement: bottom-left;
+}
+@media (min-width: 640px) {
+
+  .sm\:me-2 {
+    margin-inline-end: 0.5rem;
+  }
+
+  .sm\:max-w-\[500px\] {
+    max-width: 500px;
+  }
+}
+@media (min-width: 768px) {
+
+  .md\:flex {
+    display: flex;
+  }
+
+  .md\:\!px-\[0\.65rem\] {
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
+  }
+
+  .md\:px-\[0\.325rem\] {
+    padding-left: 0.325rem;
+    padding-right: 0.325rem;
+  }
+}
+@media (min-width: 1024px) {
+
+  .lg\:hidden {
+    display: none;
+  }
+}
+@media (min-width: 1280px) {
+
+  .xl\:ps-\[15rem\] {
+    padding-inline-start: 15rem;
+  }
+}
+@media (prefers-color-scheme: dark) {
+
+  .dark\:text-\[\#8c9097\] {
+    --tw-text-opacity: 1;
+    color: rgb(140 144 151 / var(--tw-text-opacity, 1));
+  }
+
+  .dark\:text-white {
+    --tw-text-opacity: 1;
+    color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+  }
+
+  .dark\:text-white\/50 {
+    color: rgb(255 255 255 / 0.5);
+  }
+
+  .dark\:hover\:text-white:hover {
+    --tw-text-opacity: 1;
+    color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+  }
+}
