@@ -291,3 +291,8 @@ env.local
 # build を挟まない運用（FE・BE と同じ）なので、成果物が無いと見た目が出ない。
 # キットの版を上げたら `cd app && npm run build` を忘れずに。
 /app/node_modules/
+# compose に渡す env の実体（テンプレートの .env.market*.example は追跡する）
+/.env.market
+/.env.market.db
+!.env.market.example
+!.env.market.db.example

@@ -1,0 +1,148 @@
+# OrdinalX Marketplace（Specification.md §13.1）。
+#
+# FE の docker-compose.linode.yml を型にする。BE・FE と**同居するが分離**で、
+# DB もネットワークも共有しない。
+#
+#   起動:   docker compose -f docker-compose.market.yml up -d --build
+#   反映:   docker compose -f docker-compose.market.yml restart market-web
+#
+# ⚠ betawallet / fe のスタックには触らない。`docker compose down` は禁止で、
+#   `up -d` はサービスを明示して `--no-build` を付ける（172.18.0.0/16 に
+#   FE 本番がぶら下がっており、subnet を振り直すと spv.buxbit.net が落ちる）。
+
+name: ordinalx-market
+
+services:
+  market-web:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+      args:
+        # bind mount したホスト側ソースの所有者と同じ UID/GID でコンテナの
+        # ユーザを作る（FE・BE と同じ方式）
+        UID: ${HOST_UID:-1001}
+        GID: ${HOST_GID:-1002}
+    image: ordinalx-market-web:local
+    container_name: market-web
+    command: gunicorn yp_marketplace.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 120
+    env_file:
+      - ./.env.market
+    environment:
+      DJANGO_SETTINGS_MODULE: yp_marketplace.settings
+      SQL_HOST: market-db
+      SQL_PORT: "5432"
+      # キットは bind mount で渡す（下の volumes）。イメージには焼かない
+      WALLET_KIT_DIR: /home/app/vendor/wallet-ui/app/packages/wallet-kit
+      PYTHONDONTWRITEBYTECODE: "1"
+    # ============================================================
+    # [運用] アプリコードは bind mount（FE・BE と同じ）。
+    # build なしで restart だけで反映できる。トレードオフも同じ:
+    # コンテナ侵害時にホスト側ソースへ書ける / イメージの不変性が落ちる。
+    # ============================================================
+    volumes:
+      - ./app:/home/app/web
+      # UI キット（submodule）。読み取り専用で渡す。版は submodule の指し先で固定。
+      # これが無いとシェルが描けず全ページが 500 になる（entrypoint が起動時に見る）
+      - ./vendor/wallet-ui:/home/app/vendor/wallet-ui:ro
+      # collectstatic の出力。fe-nginx が /market-static/ として配る（P0-8）
+      - market_static:/home/app/web/market-static
+    depends_on:
+      market-db:
+        condition: service_healthy
+    networks:
+      # 専用ネットワーク（DB と cron はこちらだけ）
+      - market
+      # fe-nginx から名前で引けるように FE のネットワークにも入る。
+      # ブラウザ → market は nginx の location 1 箇所だけ（§13.4-5）
+      - fe
+    logging:
+      # ⚠ docker の既定はログ無制限。/mnt/extra の空きは僅かなので上限を決める
+      #   （アプリのログは標準出力に出している。§13.1 のディスク注意）
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    healthcheck:
+      # 公開 EP（認証不要）を使う。DB とテンプレートの両方が生きていないと通らない
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/market/api/v1/schema/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  market-db:
+    # BE の betawallet-db と同じ版。**専用 DB**で、yp_dev_db は共有しない（§2）
+    image: postgres:17.5
+    container_name: market-db
+    environment:
+      POSTGRES_DB: yp_market
+      POSTGRES_USER: yp_market_user
+    env_file:
+      - ./.env.market.db
+    volumes:
+      - market_pgdata:/var/lib/postgresql/data/
+    networks:
+      - market
+    logging:
+      # ⚠ docker の既定はログ無制限。/mnt/extra の空きは僅かなので上限を決める
+      #   （アプリのログは標準出力に出している。§13.1 のディスク注意）
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yp_market_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  market-cron:
+    image: ordinalx-market-web:local
+    container_name: market-cron
+    # cron デーモンは root でないと pid ファイルを作れない。ジョブ自体は
+    # crontab の 6 列目で app ユーザとして走らせる（ホスト側に root 所有の
+    # ファイルを作らないため）。crontab は bind mount したツリーから読むので、
+    # 文面の修正は restart だけで効く。
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["install -m 0644 -o root -g root /home/app/web/crontab /etc/cron.d/market && exec cron -f"]
+    env_file:
+      - ./.env.market
+    environment:
+      DJANGO_SETTINGS_MODULE: yp_marketplace.settings
+      SQL_HOST: market-db
+      SQL_PORT: "5432"
+      WALLET_KIT_DIR: /home/app/vendor/wallet-ui/app/packages/wallet-kit
+      # cron 側では migrate も collectstatic も走らせない（web が持ち場）
+      RUN_MIGRATIONS: "0"
+      RUN_COLLECTSTATIC: "0"
+    volumes:
+      - ./app:/home/app/web
+      - ./vendor/wallet-ui:/home/app/vendor/wallet-ui:ro
+    depends_on:
+      market-db:
+        condition: service_healthy
+    networks:
+      - market
+    logging:
+      # ⚠ docker の既定はログ無制限。/mnt/extra の空きは僅かなので上限を決める
+      #   （アプリのログは標準出力に出している。§13.1 のディスク注意）
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+networks:
+  market:
+    name: ordinalx_market
+  fe:
+    # FE スタックが作った既存ネットワーク。ここでは作らない（external）
+    external: true
+    name: fe_default
+
+volumes:
+  market_pgdata:
+  market_static:

@@ -1,0 +1,14 @@
+# UI キットは bind mount で渡す（イメージに焼くと submodule の版が
+# イメージの版とずれる）。vendor は丸ごと除く。
+vendor/
+
+.git/
+.gitmodules
+app/node_modules/
+app/__pycache__/
+**/__pycache__/
+*.sqlite3
+.env
+env.local
+app/logs/
+documents/

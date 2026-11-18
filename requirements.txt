@@ -5,6 +5,9 @@ djangorestframework==3.15.2
 drf-spectacular==0.29.0
 python-dotenv==0.20.0
 
+# WSGI サーバ（BE と同じピン。コンテナの command から呼ぶ）
+gunicorn==22.0.0
+
 # Postgres（§2「専用 DB yp_market / yp_market_dev。yp_dev_db は共有しない」）
 psycopg==3.1.18
 psycopg-binary==3.1.18

@@ -33,7 +33,8 @@ P0-1〜P0-4 を入れた時点で変わった行は反映してある。
 | DRF / drf-spectacular | **導入済み**（BE と同じピン: `3.15.2` / `0.29.0`）。エンベロープとエラーコードは `yp_marketplace/api/` に共通化 |
 | bsv-sdk | **未導入**（P0-10。BE と同じ git 版を Dockerfile で入れる） |
 | 開発 venv | `/mnt/extra/venv_marketplace`（Python 3.12.3 / Django 5.2.12）。FE・BE の venv とは分離 |
-| docker / nginx / cron | **未作成**（P0-7・P0-8） |
+| docker / cron | **作成済み**（`docker-compose.market.yml`: market-web / market-db / market-cron）。専用 Postgres `yp_market` で稼働中 |
+| nginx | **未設定**（P0-8。fe-nginx から `market-web:8000` が名前で引けることは確認済み） |
 | 署名コアと UI キットの版付きパッケージ（S012 §6・§8.1） | **切り出し済み**（FE の `app/packages/wallet-kit`、タグ `kit-v1.1`）。market は `vendor/wallet-ui` の submodule で版を固定して取り込み、シェルが market 側で描けることをテストで確認済み |
 | `components/nav-extra.html`（S009 §3.3） | **未作成** |
 | fe-nginx の `location /market/` | **未設定**。`OrdinalX_Frontend_WalletUI/nginx/nginx.http.conf` に market の記述は無く、`location /` が最後にある構造は S012 §8 の前提どおり |
@@ -673,7 +674,11 @@ P0-6 では `/market/` をキットのシェルの上に s006 の骨格クラス
 `/view/dashboard` との screenshot 比較でヘッダがピクセル一致、ボトムタブも
 現在地の点灯以外は一致することを確認した（`tools/shell_diff.py` で再現できる）。
 途中でキットに 3 つ穴が見つかり、v1.1〜v1.3 で塞いだ（シェルの include、
-シェルが読む JS、シェルのレイアウト CSS）。次は **P0-7**（compose）。
+シェルが読む JS、シェルのレイアウト CSS）。
+P0-7 では `docker-compose.market.yml`（market-web / market-db / market-cron）と
+entrypoint を入れ、実際に起動して `/market/` が 200、migrate 済み、admin に入れる
+ところ、fe-nginx から `market-web:8000` が名前で引けるところまで確認した。
+次は **P0-8**（fe-nginx の location 2 本と `tools/restart.sh` の market ターゲット）。
 
 ## 17. 上位文書との対応
 

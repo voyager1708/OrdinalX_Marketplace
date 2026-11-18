@@ -90,6 +90,33 @@ cd app && npm run build      # static/css/app.css と static/js/*.js を作る
 同じ）なので、成果物が無いと見た目が出ない。**キットの版を上げたら必ず
 `npm run build` して一緒にコミットする。**
 
+## コンテナで動かす（暫定本番）
+
+```bash
+cp .env.market.example .env.market           # 値を埋める（git 管理外）
+cp .env.market.db.example .env.market.db     # SQL_PASSWORD と一致させる
+export HOST_UID=$(id -u) HOST_GID=$(id -g)   # bind mount の所有者に合わせる
+
+docker compose -f docker-compose.market.yml up -d --build
+```
+
+| コンテナ | 中身 |
+| --- | --- |
+| `market-web` | gunicorn（コンテナ内 :8000）。fe-nginx が `market-web:8000` へ proxy する（P0-8） |
+| `market-db` | **専用 Postgres**（`yp_market`）。`yp_dev_db` は共有しない |
+| `market-cron` | §11 のワーカー。ジョブは Phase 1 以降で `app/crontab` を開ける |
+
+- アプリコードは **bind mount**。反映は build 不要で
+  `docker compose -f docker-compose.market.yml restart market-web` だけ
+- UI キット（submodule）も読み取り専用で mount する。無いと起動時に
+  entrypoint が止める（シェルが描けず全ページ 500 になるため）
+- 静的資産は**ホスト側で `npm run build` した成果物**を mount して
+  collectstatic する（コンテナに Node を入れない）
+
+> ⚠ betawallet / fe のスタックには触らないこと。`docker compose down` は禁止で、
+> `up -d` はサービスを明示して `--no-build` を付ける（172.18.0.0/16 に FE 本番が
+> ぶら下がっており、subnet を振り直すと `spv.buxbit.net` が落ちる）。
+
 ## 見た目の確認（シェルが一致しているか）
 
 ウォレットと市場でシェルが食い違ったら**それはバグ**（S012 §8.1）。常駐サーバを

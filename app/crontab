@@ -1,0 +1,24 @@
+# market-cron（Specification.md §11）。/etc/cron.d 形式で読み込む。
+#
+# ⚠ cron はコンテナの env を継承しない。BE で「承認追跡が止まる」事故を踏んだのは
+#   これが原因だったので、DB への結線を **ここに明示する**。
+#   値は docker-compose.market.yml の market-cron の environment と揃えること。
+#
+# デーモンは root で動かす（cron は非 root では pid ファイルを作れない）が、
+# ジョブは 6 列目の `app` で走らせる。ホスト側の bind mount に root 所有の
+# ファイルを作らないため。
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+DJANGO_SETTINGS_MODULE=yp_marketplace.settings
+SQL_ENGINE=django.db.backends.postgresql
+SQL_DATABASE=yp_market
+SQL_USER=yp_market_user
+SQL_HOST=market-db
+SQL_PORT=5432
+
+# ワーカーは Phase 1 以降で実装する（§11）。実装したらここを開ける。
+# */5 *  * * * app cd /home/app/web && python manage.py reconcile_listings  >> logs/cron.log 2>&1
+# *    *  * * * app cd /home/app/web && python manage.py confirm_broadcasts >> logs/cron.log 2>&1
+# *    *  * * * app cd /home/app/web && python manage.py expire_templates   >> logs/cron.log 2>&1
+# *    *  * * * app cd /home/app/web && python manage.py advance_settlements >> logs/cron.log 2>&1
+# */10 *  * * * app cd /home/app/web && python manage.py verify_reservations >> logs/cron.log 2>&1
