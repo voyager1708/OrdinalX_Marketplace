@@ -24,7 +24,13 @@ from listing.models import Listing, ListingStatus, PurchaseStatus
 from listing.queries import blocked_origins, sorted_listings, visible_listings
 from listing.serializers import ListingSerializer, StatsSerializer
 from yp_marketplace.api import ErrorCode, error, success
-from yp_marketplace.api.throttles import MarketPublicRateThrottle, MarketThumbRateThrottle
+from listing.services import listing_service
+from yp_marketplace.api.throttles import (
+    MarketDraftRateThrottle,
+    MarketPublicRateThrottle,
+    MarketSubmitRateThrottle,
+    MarketThumbRateThrottle,
+)
 
 DEFAULT_PAGE_SIZE = 24
 MAX_PAGE_SIZE = 100
@@ -176,3 +182,82 @@ class StatsAPIView(PublicAPIView):
 def _market_env() -> str:
     from django.conf import settings
     return settings.MARKET_ENV
+
+
+# =============================================================================
+# 出品（§6 の認証必須 EP）。Phase 2。
+# =============================================================================
+# 端末が market を信頼しないのと対称に、market も端末を信頼しない。
+# draft は緩め・submit は厳しめの throttle（BE の nc_template / nc_broadcast と同じ）。
+
+class AuthenticatedAPIView(APIView):
+    """Bearer（BE の access token）を中継してイントロスペクションで本人確定（§7）。"""
+
+    throttle_classes = [MarketDraftRateThrottle]
+
+    def principal_id(self, request) -> int:
+        principal = getattr(request, 'market_principal', None) or request.auth
+        return int(principal.be_user_id)
+
+    def bearer(self, request) -> str:
+        header = request.META.get('HTTP_AUTHORIZATION', '')
+        return header.split(' ', 1)[1].strip() if ' ' in header else ''
+
+
+class ListingDraftAPIView(AuthenticatedAPIView):
+    @extend_schema(
+        summary='出品の未署名テンプレートを作る',
+        description='ordinal を OrdLock へ移すテンプレートを返す。署名は端末、放送は submit。',
+        tags=['market'],
+    )
+    def post(self, request):
+        body = request.data or {}
+        missing = [k for k in ('nft_origin', 'price_satoshis', 'payout_script', 'cancel_pubkey')
+                   if not body.get(k)]
+        if missing:
+            return error(f'missing: {", ".join(missing)}', ErrorCode.MISSING_PARAMETER, 400)
+        try:
+            price = int(body['price_satoshis'])
+        except (TypeError, ValueError):
+            return error('price_satoshis must be an integer', ErrorCode.INVALID_REQUEST, 400)
+
+        data = listing_service.create_listing_draft(
+            principal=self.principal_id(request),
+            token=self.bearer(request),
+            nft_origin=str(body['nft_origin']),
+            price_satoshis=price,
+            payout_script=str(body['payout_script']),
+            cancel_pubkey=str(body['cancel_pubkey']),
+            seller_paymail=str(body.get('seller_paymail') or ''),
+        )
+        return success(data)
+
+
+class ListingSubmitAPIView(AuthenticatedAPIView):
+    throttle_classes = [MarketSubmitRateThrottle]
+
+    @extend_schema(summary='署名済みの出品 tx を放送する', tags=['market'])
+    def post(self, request):
+        body = request.data or {}
+        missing = [k for k in ('template_id', 'signed_transaction_hex') if not body.get(k)]
+        if missing:
+            return error(f'missing: {", ".join(missing)}', ErrorCode.MISSING_PARAMETER, 400)
+
+        data = listing_service.submit_listing(
+            principal=self.principal_id(request),
+            token=self.bearer(request),
+            template_id=str(body['template_id']),
+            signed_transaction_hex=str(body['signed_transaction_hex']),
+        )
+        return success(data)
+
+
+class MyListingsAPIView(AuthenticatedAPIView):
+    @extend_schema(summary='自分の出品', tags=['market'])
+    def get(self, request):
+        rows = (Listing.objects
+                .filter(seller_principal=self.principal_id(request),
+                        market_env=_market_env())
+                .select_related('work', 'edition')
+                .order_by('-created_at')[:DEFAULT_PAGE_SIZE])
+        return success({'listings': ListingSerializer(rows, many=True).data})
