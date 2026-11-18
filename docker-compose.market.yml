@@ -146,3 +146,7 @@ networks:
 volumes:
   market_pgdata:
   market_static:
+    # fe-nginx が /market-static/ として配るために external で参照する（P0-8）。
+    # 名前を固定しないと `<project>_market_static` になり、FE 側の参照が
+    # プロジェクト名に依存してしまう。
+    name: ordinalx_market_static

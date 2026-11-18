@@ -113,6 +113,32 @@ docker compose -f docker-compose.market.yml up -d --build
 - 静的資産は**ホスト側で `npm run build` した成果物**を mount して
   collectstatic する（コンテナに Node を入れない）
 
+### 到達経路（fe-nginx のパスマウント）
+
+ブラウザからは `spv.buxbit.net/market/` で届く。vhost も証明書も増やさず、
+FE の nginx に location を 2 本足すだけ（S012 §1）:
+
+| location | 行き先 |
+| --- | --- |
+| `/market/` | `market-web:8000` へ proxy（UI も API も） |
+| `/market-static/` | 市場の collectstatic 出力（named volume `ordinalx_market_static`）を alias |
+
+この 2 本と `components/nav-extra.html`（P0-9）が**入切のスイッチ**で、外せば
+`/market/` は 404 に戻り、ウォレットは何も変わらない。定義は FE リポジトリの
+[nginx/nginx.http.conf](../OrdinalX_Frontend_WalletUI/nginx/nginx.http.conf) にある。
+
+反映は FE 側の `tools/restart.sh` から:
+
+```bash
+cd /mnt/extra/OrdinalX_Marketplace/app && npm run build   # CSS/JS を変えたとき
+/mnt/extra/OrdinalX_Frontend_WalletUI/tools/restart.sh market
+```
+
+> `/market/` の upstream は **変数 + resolver** で要求時に名前解決している。
+> `upstream` ブロックに書くと market-web が居ないときに nginx 自体が起動できず、
+> 市場の都合でウォレットの入口が落ちる。この形なら市場が止まっても
+> `/market/` が 503 になるだけで済む（市場の restart で reload も要らない）。
+
 > ⚠ betawallet / fe のスタックには触らないこと。`docker compose down` は禁止で、
 > `up -d` はサービスを明示して `--no-build` を付ける（172.18.0.0/16 に FE 本番が
 > ぶら下がっており、subnet を振り直すと `spv.buxbit.net` が落ちる）。
