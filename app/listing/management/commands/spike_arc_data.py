@@ -19,12 +19,16 @@ ARC のポリシー（2026-11-18 実測・TAAL）:
 import json
 import math
 import os
+import time
 
 import requests
 from django.core.management.base import BaseCommand, CommandError
 
 WOC_UNSPENT = 'https://api.whatsonchain.com/v1/bsv/main/address/{address}/unspent'
 WOC_TX_HEX = 'https://api.whatsonchain.com/v1/bsv/main/tx/{txid}/hex'
+# WoC の公開 API は素で叩くと 429 が返る。待って数回やり直す
+WOC_RETRIES = 6
+WOC_BACKOFF_SECONDS = 8
 FEE_PER_KB = 100          # ARC の miningFee（100 sat / 1000 bytes）
 DUST_LIMIT = 135          # これ未満のお釣りは作らない（出力ごと落として手数料に回す）
 
@@ -41,6 +45,11 @@ class Command(BaseCommand):
                             help='実際に ARC へ出す（**本物の BSV を使う**）')
         parser.add_argument('--arc-url', default=os.environ.get('ARC_URL', '').strip("'\""))
         parser.add_argument('--arc-token', default=os.environ.get('ARC_TOKEN', '').strip("'\""))
+        parser.add_argument('--utxo', default='',
+                            help='使う UTXO を直接指定する（txid:vout:satoshis）。'
+                                 'WoC の一覧を叩かずに済む')
+        parser.add_argument('--source-hex-file', default='',
+                            help='入力元 tx の生 hex を置いたファイル（WoC を叩かない）')
 
     def handle(self, *args, **options):
         from bsv import PrivateKey, P2PKH, Script, Transaction, TransactionInput, TransactionOutput
@@ -53,10 +62,13 @@ class Command(BaseCommand):
         address = key.address()
         self.stdout.write(f'入力に使う address: {address}')
 
-        # 1) UTXO を引く（WoC の公開 API）
-        response = requests.get(WOC_UNSPENT.format(address=address), timeout=30)
-        response.raise_for_status()
-        utxos = sorted(response.json(), key=lambda row: row['value'])
+        # 1) UTXO を決める（直接指定が無ければ WoC に訊く）
+        if options['utxo']:
+            txid, vout, satoshis = options['utxo'].split(':')
+            utxos = [{'tx_hash': txid, 'tx_pos': int(vout), 'value': int(satoshis)}]
+        else:
+            utxos = sorted(_woc_json(WOC_UNSPENT.format(address=address)),
+                           key=lambda row: row['value'])
         if not utxos:
             raise CommandError(f'{address} に未使用の UTXO が無い')
 
@@ -71,7 +83,10 @@ class Command(BaseCommand):
             raise CommandError(
                 f'{needed} sat 以上の UTXO が無い（最大 {utxos[-1]["value"]} sat）')
 
-        source_hex = requests.get(WOC_TX_HEX.format(txid=chosen['tx_hash']), timeout=60).text
+        if options['source_hex_file']:
+            source_hex = open(options['source_hex_file']).read().strip()
+        else:
+            source_hex = _woc_text(WOC_TX_HEX.format(txid=chosen['tx_hash']))
         source = Transaction.from_hex(source_hex)
 
         # 3) 組む: 出力 0 = データ、出力 1 = お釣り
@@ -125,3 +140,23 @@ def _push(length: int) -> bytes:
     if length <= 0xffff:
         return b'\x4d' + length.to_bytes(2, 'little')
     return b'\x4e' + length.to_bytes(4, 'little')
+
+
+def _woc_get(url: str) -> requests.Response:
+    """WoC を叩く。429 は待ってやり直す（公開 API なので素だと普通に当たる）。"""
+    last = None
+    for attempt in range(WOC_RETRIES):
+        last = requests.get(url, timeout=60)
+        if last.status_code != 429:
+            last.raise_for_status()
+            return last
+        time.sleep(WOC_BACKOFF_SECONDS * (attempt + 1))
+    raise CommandError(f'WoC が 429 を返し続ける: {url}')
+
+
+def _woc_json(url: str):
+    return _woc_get(url).json()
+
+
+def _woc_text(url: str) -> str:
+    return _woc_get(url).text
