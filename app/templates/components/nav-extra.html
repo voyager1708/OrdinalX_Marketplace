@@ -1,0 +1,29 @@
+{% comment %}
+市場側のナビ（S009 §3.3・S012 §9）。
+
+キットが配る `components/nav-extra.html` は空で、利用側が同じ名前で上書きする
+（TEMPLATES の DIRS は市場側が先）。中身はウォレット側のものと同じ形で、
+市場の画面では `kit_active == 'market'` なのでタブが点く。
+
+ウォレットと市場で同じ内容を持つのは重複に見えるが、**どちらのナビに出すかは
+それぞれのリポジトリの判断**なので、ここは共有しない（キットに入れてしまうと
+「外せば消える」という §13.2 のスイッチが効かなくなる）。
+{% endcomment %}
+{% if slot == "tabbar" %}
+  <a href="{{ kit_urls.market }}"
+     class="s006-tabbar__item{% if kit_active == 'market' %} is-active{% endif %}"
+     {% if kit_active == 'market' %}aria-current="page"{% endif %}>
+      <i class="bi bi-shop" aria-hidden="true"></i>
+      <span>Market</span>
+  </a>
+{% elif slot == "sidebar" %}
+  <li class="slide__category">
+    <span class="category-name">Market</span>
+  </li>
+  <li class="slide">
+    <a href="{{ kit_urls.market }}" class="side-menu__item">
+      <i class="bx bx-store side-menu__icon"></i>
+      <span class="side-menu__label">Marketplace</span>
+    </a>
+  </li>
+{% endif %}

@@ -36,7 +36,7 @@ P0-1〜P0-4 を入れた時点で変わった行は反映してある。
 | docker / cron | **作成済み**（`docker-compose.market.yml`: market-web / market-db / market-cron）。専用 Postgres `yp_market` で稼働中 |
 | nginx | **設定済み**（fe-nginx に `location /market/` と `/market-static/` の 2 本。`tools/restart.sh market` も追加）。本番への reload は未実施 |
 | 署名コアと UI キットの版付きパッケージ（S012 §6・§8.1） | **切り出し済み**（FE の `app/packages/wallet-kit`、タグ `kit-v1.1`）。market は `vendor/wallet-ui` の submodule で版を固定して取り込み、シェルが market 側で描けることをテストで確認済み |
-| `components/nav-extra.html`（S009 §3.3） | **未作成** |
+| `components/nav-extra.html`（S009 §3.3） | **作成済み**。キットが配る既定は空で、ウォレットと市場がそれぞれ上書きする。ウォレット側の追加はこの 1 ファイルだけ |
 | fe-nginx の `location /market/` | **未設定**。`OrdinalX_Frontend_WalletUI/nginx/nginx.http.conf` に market の記述は無く、`location /` が最後にある構造は S012 §8 の前提どおり |
 | `tools/restart.sh` の market ターゲット | **追加済み**（`fe｜be｜all｜market｜fe-nginx｜be-nginx`。`--build` で `npm run build` も走る） |
 | BE の `recipient_locking_script`（S010） | **未実装**（`OrdinalX_Backend/app` に該当文字列なし）。S010 は決定案のままで、Phase 2 の前提 |
@@ -682,7 +682,11 @@ P0-8 では fe-nginx に `/market/`（proxy）と `/market-static/`（alias）�
 `tools/restart.sh` に market ターゲットを追加した。`/market/` の upstream は
 **変数 + resolver** にしてある — `upstream` ブロックに書くと market-web が居ない
 ときに nginx 自体が起動できず、**市場の都合でウォレットの入口が落ちる**。
-次は **P0-9**（`components/nav-extra.html` を空で作り、既存ナビに include 1 行）。
+P0-9 ではナビの拡張点を入れた。キットの `components/nav-extra.html` は**空**で、
+シェルのタブバーとサイドバーが `slot` 付きで include する。ウォレットと市場が
+それぞれ同名ファイルで上書きし、消せばナビから消える（§13.2 の入切のスイッチ）。
+390px で 6 タブが折り返さずに収まることと、シェルが依然一致することを
+screenshot で確認した。残るは **P0-10**（bsv-sdk の導入と C 拡張のビルド確認）。
 
 ## 17. 上位文書との対応
 
