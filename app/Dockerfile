@@ -11,14 +11,30 @@ WORKDIR /usr/src/app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# psycopg / pillow のビルドに要る
+# psycopg / pillow と、bsv-sdk の C 拡張（secp256k1）のビルドに要る。
+# BE の builder と同じ構成にしておく。gcc だけだと stdlib.h が見つからず
+# bsv_native.c のコンパイルが落ちる（libc6-dev が要る）。
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        gcc \
+        libc6-dev \
+        build-essential \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt
+
+# bsv-sdk は **BE と同じ git 版**（feature/c-extension-phase0 @ 575dd29）を
+# native ビルドして wheel 化する（Specification.md §2）。PyPI 版と混ぜない。
+# BSV_REQUIRE_NATIVE=1 … C 拡張のビルドに失敗したとき、黙って pure-Python に
+# 落ちるのを防ぐ。落ちると「正しく動くが遅い」状態になり、気づけない。
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && git clone https://github.com/bsv-blockchain/py-sdk.git /tmp/py-sdk-c-ext \
+    && cd /tmp/py-sdk-c-ext && git checkout 575dd29 \
+    && BSV_REQUIRE_NATIVE=1 pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels . \
+    && rm -rf /tmp/py-sdk-c-ext /var/lib/apt/lists/*
 
 
 #########

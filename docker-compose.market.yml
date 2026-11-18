@@ -41,6 +41,9 @@ services:
     # ============================================================
     volumes:
       - ./app:/home/app/web
+      # entrypoint もアプリと同じく mount する。イメージに焼いたままだと
+      # 「ホストを直したのに効かない」が起きる（起動前処理なので気づきにくい）
+      - ./tools:/home/app/tools:ro
       # UI キット（submodule）。読み取り専用で渡す。版は submodule の指し先で固定。
       # これが無いとシェルが描けず全ページが 500 になる（entrypoint が起動時に見る）
       - ./vendor/wallet-ui:/home/app/vendor/wallet-ui:ro
@@ -120,6 +123,7 @@ services:
       RUN_COLLECTSTATIC: "0"
     volumes:
       - ./app:/home/app/web
+      - ./tools:/home/app/tools:ro
       - ./vendor/wallet-ui:/home/app/vendor/wallet-ui:ro
     depends_on:
       market-db:

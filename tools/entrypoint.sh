@@ -51,9 +51,24 @@ if [ "${RUN_COLLECTSTATIC:-1}" = "1" ]; then
     python manage.py collectstatic --no-input --clear >/dev/null
 fi
 
-# ---- bsv-sdk の C 拡張（P0-10 で入れる）------------------------------------
-# ⚠ bind mount はイメージ層を隠す。イメージ内でビルドした .so が見えなくなり、
-#   **エラーは出ず「正しく動くが遅い」だけ**になる（BE で踏んだ罠）。
-#   bsv-sdk を入れたら BE の restore-native-ext.sh と同じ仕掛けをここに足す。
+# ---- bsv-sdk の C 拡張 -----------------------------------------------------
+# ⚠ この手の拡張は **エラーを出さずに pure-Python へ落ちる**（BE で踏んだ罠：
+#   「正しく動くが遅い」だけなので気づけない）。起動のたびに実測してログに出す。
+#
+# なお BE の restore-native-ext.sh のような埋め直しは market では要らない。
+# あれは **アプリのツリーの中**でビルドした .so（Kusabi）が `./app` の
+# bind mount で覆われるための対処で、bsv-sdk の .so は site-packages にあり
+# mount の外にいる。将来ツリー内に拡張を足したら、そのときに仕掛けを入れる。
+if [ "${SKIP_NATIVE_CHECK:-0}" != "1" ]; then
+    python - <<'PYCHECK' || true
+import importlib.util
+spec = importlib.util.find_spec("_bsv_native")
+if spec is None:
+    print("[entrypoint] WARNING: bsv-sdk の C 拡張が無い → pure-Python で動く"
+          "（正しく動くが遅い）。イメージのビルドを確認すること")
+else:
+    print(f"[entrypoint] bsv native extension: {spec.origin}")
+PYCHECK
+fi
 
 exec "$@"

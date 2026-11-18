@@ -40,9 +40,17 @@ app/
 ```bash
 python3 -m venv /mnt/extra/venv_marketplace          # 新しい環境のときだけ
 /mnt/extra/venv_marketplace/bin/pip install -r requirements.txt
+# bsv-sdk は requirements に入れない（PyPI 版が勝つと C 拡張が入らない）。
+# BE と同じ git 版を手で入れる:
+/mnt/extra/venv_marketplace/bin/pip install \
+    "git+https://github.com/bsv-blockchain/py-sdk.git@575dd29"
 cp .env.example .env                                 # 値を埋める（.env は git 管理外）
 git submodule update --init                          # UI キット（下記）
 ```
+
+> ⚠ bsv-sdk の C 拡張は、入らなくても**エラーを出さずに pure-Python へ落ちる**
+> （「正しく動くが遅い」だけなので気づけない）。コンテナは起動のたびに実測して
+> ログに出し、`tests_bsv.py` でも押さえている。
 
 ## UI キット（ウォレットのシェルを版で固定して使う）
 

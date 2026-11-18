@@ -15,5 +15,11 @@ psycopg-binary==3.1.18
 # サムネイルの再エンコード（§14-6。長辺 512px WebP・1 件 50KB 上限）
 pillow==12.1.1
 
-# bsv-sdk は P0-10 で Dockerfile 内の git 版（BE と同じ C 拡張ビルド）を入れる。
-# ここに pypi 版を書くと BE と別実装になるので書かない。
+# bsv-sdk は **ここに書かない**。Dockerfile 内で BE と同じ git 版
+# （feature/c-extension-phase0 @ 575dd29）を native ビルドして入れる。
+# ここに pypi 版を書くと、wheel の解決でそちらが勝って C 拡張が入らず、
+# 「正しく動くが遅い」状態になる（BE と同じ理由で除外している）。
+#
+# 開発 venv には手で入れる:
+#   /mnt/extra/venv_marketplace/bin/pip install \
+#     "git+https://github.com/bsv-blockchain/py-sdk.git@575dd29" 

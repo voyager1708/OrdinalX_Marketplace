@@ -31,7 +31,7 @@ P0-1〜P0-4 を入れた時点で変わった行は反映してある。
 | 本リポジトリ | §4 の 6 アプリ（`accounts` / `vendor` / `product` / `chain` / `listing` / `vault`）と `yp_marketplace_vault` の骨格まで。`manage.py check` / `migrate` 通過、test 30 件 + vault 3 件が PASS |
 | DB | **Postgres 接続済み**。開発は `yp_market_dev`（専用 role `yp_market_user`）。既定値は §12 のとおり sqlite のままで、差し替えは `.env` |
 | DRF / drf-spectacular | **導入済み**（BE と同じピン: `3.15.2` / `0.29.0`）。エンベロープとエラーコードは `yp_marketplace/api/` に共通化 |
-| bsv-sdk | **未導入**（P0-10。BE と同じ git 版を Dockerfile で入れる） |
+| bsv-sdk | **導入済み**（BE と同じ git 版 `575dd29` を Dockerfile で native ビルド）。コンテナ・開発 venv とも C 拡張が効いていることを起動ログとテストで確認 |
 | 開発 venv | `/mnt/extra/venv_marketplace`（Python 3.12.3 / Django 5.2.12）。FE・BE の venv とは分離 |
 | docker / cron | **作成済み**（`docker-compose.market.yml`: market-web / market-db / market-cron）。専用 Postgres `yp_market` で稼働中 |
 | nginx | **設定済み**（fe-nginx に `location /market/` と `/market-static/` の 2 本。`tools/restart.sh market` も追加）。本番への reload は未実施 |
@@ -686,7 +686,15 @@ P0-9 ではナビの拡張点を入れた。キットの `components/nav-extra.h
 シェルのタブバーとサイドバーが `slot` 付きで include する。ウォレットと市場が
 それぞれ同名ファイルで上書きし、消せばナビから消える（§13.2 の入切のスイッチ）。
 390px で 6 タブが折り返さずに収まることと、シェルが依然一致することを
-screenshot で確認した。残るは **P0-10**（bsv-sdk の導入と C 拡張のビルド確認）。
+screenshot で確認した。P0-10 では bsv-sdk を BE と同じ git 版（`575dd29`）で native ビルドして入れた。
+起動のたびに C 拡張の有無を実測してログに出す（**エラーを出さずに pure-Python へ
+落ちる**ため、出していないと気づけない）。なお BE の `restore-native-ext.sh` に
+あたる埋め直しは market では要らない — あれは**アプリのツリーの中**でビルドした
+`.so` が `./app` の bind mount で覆われる対処で、bsv-sdk の `.so` は
+site-packages にあり mount の外にいる。ツリー内に拡張を足したときに入れる。
+
+**これで Phase 0（P0-1〜P0-10）は完了**。次は Spike 0（OrdLock の実地検証）か
+Phase 1（公開一覧とイントロスペクション）。
 
 ## 17. 上位文書との対応
 
