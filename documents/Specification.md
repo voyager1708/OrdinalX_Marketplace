@@ -765,6 +765,22 @@ site-packages にあり mount の外にいる。ツリー内に拡張を足し�
 一緒に入れる）。問い合わせは `listing/queries.py` の 1 箇所に閉じ込め、
 **MARKET_ENV の絞り込みと運営 blocklist が view から漏れない**形にした。
 ダミーの出品は `manage.py seed_market`（MARKET_ENV=dev でしか動かない）。
+
+**Phase 2（2026-11-19・進行中）**: 前提の S010（BE に `recipient_locking_script` を
+足す）を実装し、市場側の**出品**（`listings/draft` → 端末で署名 → `listings/submit`）を
+入れた。価格と受取先は OrdLock に焼き込まれ（§14-3）、二重出品は部分一意インデックスと
+`select_for_update` の二重で塞ぎ、監査証跡は NC と同じ 4 段で残る。
+**submit は「発行した OrdLock へ 1 sat が載っている tx」以外を放送しない**
+（端末が market を信頼しないのと対称に、market も端末を信頼しない）。
+放送できても状態は `pending` までで、`active` にするのは reconcile が UTXO の
+未使用性を確かめてから。残りは**キャンセル**（`cancel/draft` / `cancel/submit`）と
+端末側の意図検証、そして BE 変更の本番反映。
+
+> S010 の実装で分かったことが 2 つ。**記帳ガードは必須**だった（実物の OrdLock v2 から
+> BE の `get_address_from_locking_script()` が**売り手のアドレスを返す**。§5 の仮説が的中）。
+> また S010 の差分案に**1 箇所抜け**があった — `create_template` は出力を詰め直すので、
+> `external` を明示的に運ばないと記帳側に届かない。
+
 **Spike 0（2026-11-18・チェーンに出さずに判定できる 2 件）**
 
 | # | 問い | 答え |
