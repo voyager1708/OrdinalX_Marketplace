@@ -41,7 +41,35 @@ app/
 python3 -m venv /mnt/extra/venv_marketplace          # 新しい環境のときだけ
 /mnt/extra/venv_marketplace/bin/pip install -r requirements.txt
 cp .env.example .env                                 # 値を埋める（.env は git 管理外）
+git submodule update --init                          # UI キット（下記）
 ```
+
+## UI キット（ウォレットのシェルを版で固定して使う）
+
+市場の画面はウォレットと**同じシェル・骨格・スキン**の上に描く。デザインは
+ウォレットが正で、市場はキットの利用側（S012 §8.1）。実行時にウォレットの
+ビルド成果物は読まない — submodule で**版を固定して**取り込む。
+
+```
+vendor/wallet-ui/                       FE リポジトリの submodule（タグで固定）
+  └── app/packages/wallet-kit/          ← 参照するのはここだけ
+        templates/components/           wallet-base / bottom-tabs / gaudi-defs / …
+        css/                            s006.css（骨格）/ gaudi.css（スキン）
+        js/                             署名コア（Phase 2 で使う）
+        CONTRACT.md                     契約の全文（**先に読む**）
+```
+
+- 現在固定している版: **kit-v1.1**
+- 版を上げるときは `cd vendor/wallet-ui && git fetch --tags && git checkout kit-vN`
+  してからコミットする（submodule の指し先がそのまま版の記録になる）
+- 契約（鍵の置き場・暗号パラメータ・MAP の並び・シェルの context）は
+  [`vendor/wallet-ui/app/packages/wallet-kit/CONTRACT.md`](vendor/wallet-ui/app/packages/wallet-kit/CONTRACT.md)
+- market 側の供給は [`app/yp_marketplace/kit.py`](app/yp_marketplace/kit.py)。
+  `kit_urls` を渡さないと `NoReverseMatch` で画面全体が 500 になる
+
+> ⚠ Tailwind は preset の `content` をマージしない。市場の画面を作るとき
+> （P0-6）は `...kit.content` を**展開して**足す。忘れるとキットのクラスだけが
+> purge され、HTML は正しいのに CSS だけが静かに壊れる。
 
 ## 動かす
 

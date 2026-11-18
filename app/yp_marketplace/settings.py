@@ -88,18 +88,28 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'yp_marketplace.urls'
 
+# UI キット（ウォレットの版付きシェル・骨格・スキン）。submodule で版を固定して
+# 取り込む（§15 の依存表、キットの CONTRACT.md）。参照するのはこのパスだけで、
+# ウォレットのビルド成果物を実行時に読まない。
+WALLET_KIT_DIR = Path(
+    os.environ.get("WALLET_KIT_DIR")
+    or (BASE_DIR.parent / 'vendor/wallet-ui/app/packages/wallet-kit')
+)
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # 市場固有のテンプレートだけ。シェル（wallet-base.html）とテーマは
-        # P0-5 で版付き UI キットを DIRS に足して extends する（§15 の依存表）。
-        'DIRS': [BASE_DIR / 'templates'],
+        # 市場固有のテンプレートを**先**に置く。同名のファイルを置けばキットの
+        # ものを上書きできる（市場は Service Worker を登録しないので pwa-head など）。
+        'DIRS': [BASE_DIR / 'templates', WALLET_KIT_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # キットのシェルが要求する kit_urls / kit_active と識別子 6 つ
+                'yp_marketplace.kit.kit_context',
             ],
         },
     },
@@ -295,6 +305,11 @@ USE_TZ = True
 
 STATIC_URL = os.environ.get("STATIC_URL") or '/market-static/'
 STATIC_ROOT = os.environ.get("STATIC_ROOT") or (BASE_DIR / 'market-static')
+
+# キットの CSS（骨格 s006 とスキン gaudi）。utilities を含む最終 CSS は
+# 利用側で Tailwind を通して作る（キットの CONTRACT.md §6.1。preset の content を
+# **展開して**足す。忘れるとキットのクラスだけ purge されて静かに壊れる）。
+STATICFILES_DIRS = [WALLET_KIT_DIR / 'css'] if (WALLET_KIT_DIR / 'css').exists() else []
 
 
 # =============================================================================

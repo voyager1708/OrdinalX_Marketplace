@@ -34,7 +34,7 @@ P0-1〜P0-4 を入れた時点で変わった行は反映してある。
 | bsv-sdk | **未導入**（P0-10。BE と同じ git 版を Dockerfile で入れる） |
 | 開発 venv | `/mnt/extra/venv_marketplace`（Python 3.12.3 / Django 5.2.12）。FE・BE の venv とは分離 |
 | docker / nginx / cron | **未作成**（P0-7・P0-8） |
-| 署名コアと UI キットの版付きパッケージ（S012 §6・§8.1） | **未着手**。FE に `.gitmodules` は無く、`package.json` は template 由来の `ynex` のまま |
+| 署名コアと UI キットの版付きパッケージ（S012 §6・§8.1） | **切り出し済み**（FE の `app/packages/wallet-kit`、タグ `kit-v1.1`）。market は `vendor/wallet-ui` の submodule で版を固定して取り込み、シェルが market 側で描けることをテストで確認済み |
 | `components/nav-extra.html`（S009 §3.3） | **未作成** |
 | fe-nginx の `location /market/` | **未設定**。`OrdinalX_Frontend_WalletUI/nginx/nginx.http.conf` に market の記述は無く、`location /` が最後にある構造は S012 §8 の前提どおり |
 | `tools/restart.sh` の market ターゲット | **未追加**（現在のターゲットは `fe｜be｜all｜fe-nginx｜be-nginx`） |
@@ -664,10 +664,12 @@ nginx の location 2 本と nav を外すと `/market/` が 404 になり、FE �
 **Phase 0 を飛ばして機能を書き始めない。** 特に P0-5（キットの切り出し）を後回しにすると、
 鍵を扱う実装とデザインが 2 箇所に分岐し、あとで統合できなくなる。
 
-**進捗（2026-11-18）**: P0-1〜P0-4 完了。P0-3 では §5 のモデルに加えて
+**進捗（2026-11-18）**: P0-1〜P0-5 完了。P0-3 では §5 のモデルに加えて
 事後ガード（`TakedownRequest` / `BlockedContent` / `KeyRevocation`）と vault 側の
 `SealedKey` / `KeyRelease` / `AgeVerification` も同じ migration に入れた
-（§14-12「あとで足すと事故の当日に手が無い」）。次は **P0-5**。
+（§14-12「あとで足すと事故の当日に手が無い」）。P0-5 ではキットを
+`kit-v1.1` として切り出し、`vendor/wallet-ui` の submodule で固定した。
+次は **P0-6**（市場の 1 画面を `wallet-base.html` extends + s006 骨格クラスだけで描く）。
 
 ## 17. 上位文書との対応
 

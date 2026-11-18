@@ -1,0 +1,3 @@
+[submodule "vendor/wallet-ui"]
+	path = vendor/wallet-ui
+	url = git@github.com:voyager1708/ordinalx-front-wallet.git
