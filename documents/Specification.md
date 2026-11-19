@@ -262,9 +262,17 @@ market:  GET {BE_API_BASE_URL}/api/v1/user/info に同じ Bearer を中継
 > 出品を作る手段は公式にはもう無い**。
 >
 > 維持されているのは後継の **1Sat SDK**（`b-open-io/1sat-sdk`）の
-> **`OrdLockV2Batch`**（`@1sat/templates` の `ordlockV2`）。市場はこちらを使う。
+> **`OrdLockV2Batch`**（`@1sat/templates` の `ordlockV2`）。
 > 実装は [`app/listing/ordlock/`](../app/listing/ordlock/)、公式ベクタとの
 > バイト一致は `listing/tests_ordlock.py`。
+
+> 🛑 **訂正（2026-11-19・実機）: 購入は v1 に戻す。** v2 の購入の枝は `OP_2MUL` を
+> **必ず実行する**（分岐は 1 本）。BSV ではこの命令が無効のままなので、購入 tx は
+> TAAL / GorillaPool の ARC がどちらも `461 "Attempted to use a disabled opcode"` で
+> 拒否する。**v2 の出品は誰にも買えない**（出品と取り下げは別の枝なので通る）。
+> v1 のスクリプトには無効な命令が無く、`lock()` が止まっているのは**ライブラリの
+> 方針**であってチェーンの制約ではないので、テンプレートを自前で vendor して使う。
+> 比較・証拠・決定は [`S018`](../../documents/S018_ordlock_v1_v2_purchase_decision.md)。
 
 **v2 の形**（Spike 0 ②: 公式ベクタと 526 バイト完全一致を確認済み）
 
