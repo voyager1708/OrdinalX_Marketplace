@@ -33,8 +33,8 @@ from listing.models import (
 )
 from listing.ordlock import lock as build_ordlock
 from listing.ordlock import p2pkh
-from listing.ordlock.script import encode_push
-from listing.ordlock.unlock import cancel_unlocking_script
+from listing.ordlock.v2.script import encode_push
+from listing.ordlock.v1.unlock import cancel_unlocking_script
 from listing.services import chain, reconcile_service
 
 PRINCIPAL = 7

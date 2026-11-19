@@ -38,7 +38,7 @@ from listing.models import (
     Purchase,
     PurchaseStatus,
 )
-from listing.ordlock.unlock import is_cancel_unlocking_script
+from listing.ordlock.v1.unlock import is_cancel_unlocking_script
 from listing.services import chain
 
 logger = logging.getLogger('market.reconcile')

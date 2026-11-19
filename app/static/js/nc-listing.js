@@ -21420,27 +21420,7 @@ ${inputLines}
 
   // ../vendor/wallet-ui/app/packages/wallet-kit/js/ordlock-v2.js
   var TEMPLATE_HEX = "76009c637576ab76aa517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e8100011f80517e9321414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff007d97785296789f527952798d9495937776927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f76927f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e827c7e23022079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798027c7e827c7e01307c7e01c37e2102b405d7f0322a89d0f9f3a98e6f938fdc1c969a8d1382a2bf66a71ae74a1e83b0ad6900aa7c820128947f7701207f758767519d7b0a6f6c323a63616e63656c8876a90088ac68";
-  var SLOTS = [
-    { paramIndex: 1, byteOffset: 436 },
-    // payOutput（直列化した支払い出力）
-    { paramIndex: 0, byteOffset: 468 }
-    // seller（20 バイトの PKH）
-  ];
   var PREFIX_HEX = TEMPLATE_HEX.slice(0, 436 * 2);
-  function hexToBytes(hex2) {
-    const clean2 = String(hex2 || "").trim().toLowerCase();
-    if (clean2.length % 2 !== 0) throw new Error("ordlock: hex must be even length");
-    const out = new Uint8Array(clean2.length / 2);
-    for (let i = 0; i < out.length; i++) {
-      const byte = Number.parseInt(clean2.substr(i * 2, 2), 16);
-      if (Number.isNaN(byte)) throw new Error("ordlock: not hex");
-      out[i] = byte;
-    }
-    return out;
-  }
-  function bytesToHex2(bytes3) {
-    return Array.from(bytes3, (b) => b.toString(16).padStart(2, "0")).join("");
-  }
   function encodePush(data) {
     const n = data.length;
     if (n === 0) return Uint8Array.of(0);
@@ -21484,40 +21464,89 @@ ${inputLines}
     out.set(lockingScript, amount.length + length.length);
     return out;
   }
-  function fillSlots(template, slots, args) {
-    const ordered = [...slots].sort((a, b) => a.byteOffset - b.byteOffset);
-    const parts = [];
-    let cursor = 0;
-    for (const slot of ordered) {
-      if (template[slot.byteOffset] !== 0) {
-        throw new Error(`ordlock: slot at ${slot.byteOffset} is not OP_0`);
-      }
-      parts.push(template.slice(cursor, slot.byteOffset));
-      parts.push(encodePush(args[slot.paramIndex]));
-      cursor = slot.byteOffset + 1;
+  function p2pkh(pubkeyHash) {
+    if (pubkeyHash.length !== 20) throw new Error("ordlock: pkh must be 20 bytes");
+    return Uint8Array.of(118, 169, 20, ...pubkeyHash, 136, 172);
+  }
+
+  // ../vendor/wallet-ui/app/packages/wallet-kit/js/ordlock-v1.js
+  var PREFIX_HEX2 = "2097dfd76851bf465e8f715593b217714858bbe9570ff3bd5e33840a34e20ff0262102ba79df5f8ae7604a9830f03c7933028186aede0675a16f025dc4f8be8eec0382201008ce7480da41702918d1ec8e6849ba32b4d65b1e40dc669c31a1e6306b266c0000";
+  var SUFFIX_HEX = "615179547a75537a537a537a0079537a75527a527a7575615579008763567901c161517957795779210ac407f0e4bd44bfc207355a778b046225a7068fc59ee7eda43ad905aadbffc800206c266b30e6a1319c66dc401e5bd6b432ba49688eecd118297041da8074ce081059795679615679aa0079610079517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e81517a75615779567956795679567961537956795479577995939521414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff00517951796151795179970079009f63007952799367007968517a75517a75517a7561527a75517a517951795296a0630079527994527a75517a6853798277527982775379012080517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01205279947f7754537993527993013051797e527e54797e58797e527e53797e52797e57797e0079517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a75517a756100795779ac517a75517a75517a75517a75517a75517a75517a75517a75517a7561517a75517a756169587951797e58797eaa577961007982775179517958947f7551790128947f77517a75517a75618777777777777777777767557951876351795779a9876957795779ac777777777777777767006868";
+  function hexToBytes(hex2) {
+    const clean2 = String(hex2 || "").toLowerCase();
+    if (clean2.length % 2 !== 0) throw new Error("ordlock-v1: odd-length hex");
+    const out = new Uint8Array(clean2.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = Number.parseInt(clean2.slice(i * 2, i * 2 + 2), 16);
     }
-    parts.push(template.slice(cursor));
-    const size = parts.reduce((n, p) => n + p.length, 0);
-    const out = new Uint8Array(size);
+    return out;
+  }
+  function bytesToHex2(bytes3) {
+    return Array.from(bytes3, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  var PREFIX = hexToBytes(PREFIX_HEX2);
+  var SUFFIX = hexToBytes(SUFFIX_HEX);
+  function lock(sellerPkh, payoutScript, priceSatoshis) {
+    if (sellerPkh.length !== 20) throw new Error("ordlock-v1: pkh must be 20 bytes");
+    const payout = buildOutput(priceSatoshis, payoutScript);
+    const sellerPush = encodePush(sellerPkh);
+    const payoutPush = encodePush(payout);
+    const out = new Uint8Array(
+      PREFIX.length + sellerPush.length + payoutPush.length + SUFFIX.length
+    );
     let at = 0;
-    for (const part of parts) {
+    for (const part of [PREFIX, sellerPush, payoutPush, SUFFIX]) {
       out.set(part, at);
       at += part.length;
     }
     return out;
   }
-  function p2pkh(pubkeyHash) {
-    if (pubkeyHash.length !== 20) throw new Error("ordlock: pkh must be 20 bytes");
-    return Uint8Array.of(118, 169, 20, ...pubkeyHash, 136, 172);
-  }
-  function lock(sellerPkh, payoutScript, priceSatoshis) {
-    if (sellerPkh.length !== 20) throw new Error("ordlock: seller pkh must be 20 bytes");
-    const payout = buildOutput(priceSatoshis, payoutScript);
-    if (payout.length < 9) throw new Error("ordlock: payout output too short");
-    return fillSlots(hexToBytes(TEMPLATE_HEX), SLOTS, [sellerPkh, payout]);
-  }
   function lockHex(sellerPkh, payoutScript, priceSatoshis) {
     return bytesToHex2(lock(sellerPkh, payoutScript, priceSatoshis));
+  }
+  function decode(scriptHex) {
+    const hex2 = String(scriptHex || "").toLowerCase();
+    const start = hex2.indexOf(PREFIX_HEX2);
+    if (start === -1) return null;
+    const suffixAt = hex2.indexOf(SUFFIX_HEX, start + PREFIX_HEX2.length);
+    if (suffixAt === -1) return null;
+    const body = hexToBytes(hex2.slice(start + PREFIX_HEX2.length, suffixAt));
+    const seller = readPush(body, 0);
+    if (!seller || seller.data.length !== 20) return null;
+    const payout = readPush(body, seller.size);
+    if (!payout || payout.data.length < 9) return null;
+    if (seller.size + payout.size !== body.length) return null;
+    let price = 0;
+    for (let i = 7; i >= 0; i--) price = price * 256 + payout.data[i];
+    return {
+      sellerPkhHex: bytesToHex2(seller.data),
+      priceSatoshis: price,
+      payoutHex: bytesToHex2(payout.data),
+      payoutScriptHex: bytesToHex2(payoutScriptOf(payout.data))
+    };
+  }
+  function readPush(raw, offset) {
+    if (offset >= raw.length) return null;
+    const op = raw[offset];
+    if (op >= 1 && op <= 75) {
+      return { data: raw.slice(offset + 1, offset + 1 + op), size: 1 + op };
+    }
+    if (op === 76) {
+      const n = raw[offset + 1];
+      return { data: raw.slice(offset + 2, offset + 2 + n), size: 2 + n };
+    }
+    if (op === 77) {
+      const n = raw[offset + 1] | raw[offset + 2] << 8;
+      return { data: raw.slice(offset + 3, offset + 3 + n), size: 3 + n };
+    }
+    return null;
+  }
+  function payoutScriptOf(payout) {
+    const length = payout[8];
+    if (length < 253) return payout.slice(9, 9 + length);
+    if (length === 253) return payout.slice(11, 11 + (payout[9] | payout[10] << 8));
+    const size = payout[9] | payout[10] << 8 | payout[11] << 16 | payout[12] << 24;
+    return payout.slice(13, 13 + size);
   }
 
   // ../vendor/wallet-ui/app/packages/wallet-kit/js/nc-listing.js
@@ -21577,6 +21606,48 @@ ${inputLines}
       );
     }
     return expected;
+  }
+  function verifyPurchaseDraft(draft, expect) {
+    const template = draft && draft.template;
+    if (!template) throw new Error("nc-listing: draft has no template");
+    const outputs = template.outputs || [];
+    const inputs = template.inputs || [];
+    if (outputs.length < 2) throw new Error("nc-listing: purchase needs 2+ outputs");
+    const ordinal = outputs[0];
+    if (Number(ordinal.satoshis) !== 1) {
+      throw new Error("nc-listing: output 0 is not 1 satoshi");
+    }
+    if (String(ordinal.locking_script).toLowerCase() !== String(expect.receiveScriptHex).toLowerCase()) {
+      throw new Error("nc-listing: the ordinal would not come to your address");
+    }
+    const listing = decode(draft.ordlock_script_hex);
+    if (!listing) throw new Error("nc-listing: the listing script is not an OrdLock v1 listing");
+    const payout = outputs[1];
+    if (Number(payout.satoshis) !== Number(listing.priceSatoshis) || String(payout.locking_script).toLowerCase() !== listing.payoutScriptHex) {
+      throw new Error("nc-listing: output 1 is not the seller payout baked into the lock");
+    }
+    if (expect.priceSatoshis != null && Number(expect.priceSatoshis) !== Number(listing.priceSatoshis)) {
+      throw new Error(
+        `nc-listing: the lock says ${listing.priceSatoshis} sat, not the ${expect.priceSatoshis} shown`
+      );
+    }
+    if (expect.feeBps != null) {
+      const announced = Number(draft.fee_satoshis || 0);
+      assertAnnouncedFee(listing.priceSatoshis, expect.feeBps, announced);
+    }
+    const signs = template.client_signs_input_indices || [];
+    if (signs.includes(0)) {
+      throw new Error("nc-listing: the market wants you to sign the listing input");
+    }
+    if (!signs.length) throw new Error("nc-listing: nothing to sign");
+    const totalIn = inputs.reduce((sum, i) => sum + Number(i.satoshis || 0), 0);
+    const totalOut = outputs.reduce((sum, o) => sum + Number(o.satoshis || 0), 0);
+    const minerFee = totalIn - totalOut;
+    if (minerFee < 0) throw new Error("nc-listing: outputs exceed inputs");
+    if (expect.maxMinerFeeSatoshis != null && minerFee > Number(expect.maxMinerFeeSatoshis)) {
+      throw new Error(`nc-listing: miner fee ${minerFee} exceeds the ${expect.maxMinerFeeSatoshis} cap`);
+    }
+    return txFingerprint(inputs, outputs);
   }
   var CANCEL_SIGHASH = "SINGLE|ANYONECANPAY|FORKID";
   var CANCEL_SIGHASH_FLAG = 195;
@@ -21655,11 +21726,13 @@ ${inputLines}
     window.NcListing = {
       txFingerprint,
       verifyListingDraft,
+      verifyPurchaseDraft,
       assertAnnouncedFee,
       verifyCancelDraft,
       deriveListingKeys,
       signCancel,
       p2pkh,
+      decodeLock: decode,
       CANCEL_SIGHASH,
       CANCEL_SIGHASH_FLAG
     };

@@ -1,5 +1,8 @@
 """
-OrdLock v2（documents/Specification.md §8.1、Spike 0 ②④）。
+OrdLock **v2**（参照のため残す。S018 で決済ロックは v1 に移った）。
+
+v2 のスクリプト自体は公式ベクタとの一致を見続ける（契約が直れば
+まとめ買いができるので使える）。市場が使う v1 は `tests_ordlock_v1.py`。
 
 **参照実装とバイト単位で同じ**であることが契約。ズレると、出品が外部の 1Sat
 マーケットから見えなくなるか、最悪ロックが解けなくなる（資産が永久に動かない）。
@@ -14,8 +17,8 @@ from pathlib import Path
 
 from django.test import SimpleTestCase
 
-from listing.ordlock import decode, is_ordlock_v2, lock, p2pkh, plan_purchase
-from listing.ordlock.artifact import PREFIX_HEX, TEMPLATE_HEX, TEMPLATE_SHA256
+from listing.ordlock.v2 import decode, is_ordlock_v2, lock, p2pkh, plan_purchase
+from listing.ordlock.v2.artifact import PREFIX_HEX, TEMPLATE_HEX, TEMPLATE_SHA256
 
 VECTOR = bytes.fromhex(
     (Path(__file__).resolve().parent / 'testdata/ordlock_v2_listing_vector.hex')

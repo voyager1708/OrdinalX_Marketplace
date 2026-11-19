@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from listing.ordlock.artifact import CANCEL_MARKER, CODESEP_INDEX, PREFIX_HEX
-from listing.ordlock.script import _read_push, encode_push
+from listing.ordlock.v2.artifact import CANCEL_MARKER, CODESEP_INDEX, PREFIX_HEX
+from listing.ordlock.v2.script import _read_push, encode_push
 
 # 公開メソッドのセレクタ。purchase=0 → OP_0(0x00) / cancel=1 → OP_1(0x51)
 OP_0 = 0x00

@@ -31,7 +31,7 @@ from listing.models import (
     TxTemplate,
 )
 from listing.ordlock import decode as decode_ordlock
-from listing.ordlock.unlock import cancel_unlocking_script
+from listing.ordlock.v1.unlock import cancel_unlocking_script
 from listing.services import chain
 from listing.services.listing_service import tx_fingerprint
 from yp_marketplace.api.errors import (

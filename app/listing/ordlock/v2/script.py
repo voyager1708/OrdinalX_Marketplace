@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from listing.ordlock.artifact import PREFIX_HEX, SLOTS, TEMPLATE_HEX
+from listing.ordlock.v2.artifact import PREFIX_HEX, SLOTS, TEMPLATE_HEX
 
 TEMPLATE = bytes.fromhex(TEMPLATE_HEX)
 PREFIX = bytes.fromhex(PREFIX_HEX)

@@ -24,7 +24,8 @@ from listing.models import (
 )
 from listing.ordlock import lock as build_ordlock
 from listing.ordlock import p2pkh
-from listing.ordlock.unlock import CANCEL_SELECTOR, is_cancel_unlocking_script
+from listing.ordlock.v1.artifact import CANCEL_SELECTOR
+from listing.ordlock.v1.unlock import is_cancel_unlocking_script
 from listing.services import cancel_service
 from yp_marketplace.api.errors import MarketError
 
@@ -171,15 +172,16 @@ class CancelUnlockShapeTests(TestCase):
     """参照実装（1Sat SDK）の形と一致すること。"""
 
     def test_unlocking_script_shape(self):
-        from listing.ordlock.unlock import cancel_unlocking_script
+        from listing.ordlock.v1.unlock import cancel_unlocking_script
         script = cancel_unlocking_script(b'\x30' * 71, b'\x02' + b'\x11' * 32)
         self.assertTrue(is_cancel_unlocking_script(script))
         self.assertEqual(script[-1], CANCEL_SELECTOR)
-        # 先頭は "ol2:cancel" の push（長さ 1 バイト + 10 バイト）
-        self.assertEqual(script[:11].hex(), '0a' + b'ol2:cancel'.hex())
+        # v1 は `<sig> <pubkey> OP_1`。**v2 のようなマーカーは無い**（S018）
+        self.assertEqual(script[0], 71)
+        self.assertNotIn(b'ol2:cancel', script)
 
     def test_rejects_malformed_key(self):
-        from listing.ordlock.unlock import cancel_unlocking_script
+        from listing.ordlock.v1.unlock import cancel_unlocking_script
         with self.assertRaises(ValueError):
             cancel_unlocking_script(b'\x30', b'\x02' * 10)
 

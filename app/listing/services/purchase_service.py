@@ -1,24 +1,29 @@
 """
-購入（documents/Specification.md §8.3・§5）。
+購入（documents/Specification.md §8.3・§5、S018 で **v1** に決定）。
 
-**市場が組む**。入力に OrdLock が入るので BE には組めない（BE の UTXO 表に
-無い）。鍵は要らない — v2 の購入は署名ではなく `<preimage> OP_0` で解け、
-契約は「入力 i が指す出力 i が、出品に焼き込まれた payout と完全一致すること」
-だけを見る（SIGHASH_SINGLE が入力 i と出力 i を対にする）。
+**市場が組む**。入力に OrdLock が入るので BE には組めない（BE の UTXO 表に無い）。
+鍵は要らない — v1 の購入は署名ではなく
 
-    draft  … 買い手の入力と受取先を集め、v2 が要求する並びで出力を組む
+    <出力0の直列化> <出力2以降の直列化 | OP_0> <preimage> OP_0
+
+で解け、契約は「渡された preimage がこの tx のものか」と「出力 0・1・残りが
+噛み合うか」だけを見る。出力 1（売り手への払い）は**ロックに焼き込まれた**ものを
+契約自身が使うので、価格は改竄できない。
+
+    draft  … 買い手の入力と受取先を集め、v1 が要求する並びで出力を組む
     submit … 買い手が署名した tx を受け、出品の入力を解いて放送する
 
-出力の並びは **first-sat ordering** で決まっていて、崩すと ordinal が買い手に
-届かない（参照実装 `planPurchase` と同じ）:
+**出力の並びは固定**（参照実装 `purchaseListing`）:
 
-    入力  : 0…k-1 前払い · k 出品 · k+1… 手数料ぶんの追加入力
-    出力  : 0 クッション · 1…k-1 0 sat の詰め物 · k payout · k+1 受け取り
-            · k+2 市場手数料 · k+3 追加入力のお釣り
+    入力  : 0 出品（OrdLock）· 1… 買い手の支払い
+    出力  : 0 買い手の ordinal(1 sat) · 1 売り手への払い · 2… 市場手数料 / お釣り
 
-クッションは **前払い合計 − 価格** でなければならない。ここを削って手数料に
-回すと、1 sat の ordinal が payout 側にずれて**買い手に届かなくなる**。
-だからマイナー手数料と市場手数料は**出品の入力より後ろの入力**で賄う。
+出品の入力を**先頭に置く**のは first-sat ordering のため。ordinal の 1 sat は
+入力の並び順で見た先頭にあるので、出力 0 に落ちる。ここを崩すと**買い手に
+ordinal が届かない**。
+
+マイナー手数料は買い手が持つ（§8.3）。買い手の署名は `ALL|FORKID` で、
+**出力はすべて確定してから**署名してもらう（v2 と違い後から足せない）。
 """
 
 from __future__ import annotations
@@ -43,9 +48,12 @@ from listing.models import (
     TxTemplate,
 )
 from listing.ordlock import decode as decode_ordlock
-from listing.ordlock import plan_purchase
-from listing.ordlock.script import build_output, p2pkh
-from listing.ordlock.unlock import purchase_subscript, purchase_unlocking_script
+from listing.ordlock.v1.unlock import (
+    estimate_purchase_unlock_length,
+    purchase_unlocking_script,
+    serialize_outputs,
+)
+from listing.ordlock.v2.script import build_output, p2pkh
 from listing.services import chain
 from listing.services.listing_service import tx_fingerprint
 from yp_marketplace.api.errors import (
@@ -62,6 +70,11 @@ audit = logging.getLogger('market.audit')
 # 買い手が署名する範囲。出力は全部確定しているので ALL でよい
 # （出品の入力は署名ではなく preimage で解くので、買い手の署名とは独立）。
 BUYER_SIGHASH = 'ALL|FORKID'
+
+# 出品の入力・出力の位置（v1 は固定）
+LISTING_INPUT_INDEX = 0
+ORDINAL_VOUT = 0
+PAYOUT_VOUT = 1
 
 BUYABLE = (ListingStatus.ACTIVE, ListingStatus.PENDING)
 
@@ -99,6 +112,23 @@ def _pick_inputs(utxos: List[Dict[str, Any]], needed: int) -> List[Dict[str, Any
     raise MarketError(
         f'not enough balance: need {needed} sat, have {total} sat',
         ErrorCode.INVALID_REQUEST, 400)
+
+
+def _estimate_tx_size(lock_raw: bytes, funding_inputs: int, outputs: int) -> int:
+    """
+    購入 tx のバイト数の見積もり。
+
+    内訳は version 4 + 入力数の varint + 入力 + 出力数の varint + 出力 + locktime 4。
+    出品の入力は **解錠だけで 1 KB 超**（preimage が scriptCode を丸ごと含む）なので、
+    ここを定数で済ませると手数料が足りずに ARC が弾く（実機で踏んだ）。
+    余裕を 10% 見る（お釣りの額で出力長は変わらないが、署名長は 1 バイト揺れる）。
+    """
+    listing_input = 32 + 4 + 4 + estimate_purchase_unlock_length(lock_raw) + 3
+    p2pkh_input = 32 + 4 + 4 + 107 + 1
+    p2pkh_output = 8 + 1 + 25
+    size = (4 + 1 + listing_input + p2pkh_input * funding_inputs
+            + 1 + p2pkh_output * outputs + 4)
+    return int(size * 1.1)
 
 
 def _as_template_input(utxo: Dict[str, Any]) -> Dict[str, Any]:
@@ -152,43 +182,36 @@ def create_purchase_draft(*, principal: int, token: str, listing_id: int,
         fee_satoshis = price * listing.fee_bps // 10_000 if fee_script else 0
 
         utxos = (client.list_utxos() or {}).get('utxos') or []
-        # 前払い（payout を賄う）と、その後ろの手数料ぶんを分けて取る
-        front = _pick_inputs(utxos, price)
-        front_total = sum(int(u['satoshis']) for u in front)
+        # 買い手が払うのは 価格 + 市場手数料 + マイナー手数料（§8.3）。
+        # サイズは**実際の形から**見積もる（出品の解錠が 1 KB を超えるので、
+        # 大雑把な定数では足りずに ARC が "Fees are insufficient" を返す）。
+        miner_fee = chain.estimate_fee(
+            _estimate_tx_size(lock_raw, funding_inputs=2, outputs=4))
+        needed = price + fee_satoshis + miner_fee + chain.DUST_LIMIT
+        funding = _pick_inputs(utxos, needed)
+        funding_total = sum(int(u['satoshis']) for u in funding)
 
-        used = {(u['txid'], int(u['output_index'])) for u in front}
-        rest = [u for u in utxos if (u['txid'], int(u['output_index'])) not in used]
-        # マイナー手数料の見積もり（出品の解錠が preimage ぶん大きい）
-        rough_size = 400 + len(lock_raw) + 180 * (len(front) + 2)
-        miner_fee = chain.estimate_fee(rough_size)
-        trailing = _pick_inputs(rest, fee_satoshis + miner_fee + chain.DUST_LIMIT)
-        trailing_total = sum(int(u['satoshis']) for u in trailing)
-
-        plan = plan_purchase(
-            front_satoshis=[int(u['satoshis']) for u in front],
-            listings=[lock_raw],
-            receive_scripts=[receive_raw],
-            cushion_script=bytes.fromhex(front[0]['locking_script']),
-        )
-
-        outputs = [{'satoshis': sats, 'locking_script': script.hex()}
-                   for sats, script in plan.outputs]
+        # **出力の並びは固定**（v1）。0 が買い手の ordinal、1 が売り手への払い。
+        outputs = [
+            {'satoshis': 1, 'locking_script': receive_raw.hex()},
+            {'satoshis': price, 'locking_script': decoded.payout_script.hex()},
+        ]
         if fee_script and fee_satoshis:
-            outputs.append({'satoshis': fee_satoshis, 'locking_script': fee_script.hex()})
-        change = trailing_total - fee_satoshis - miner_fee
+            outputs.append({'satoshis': fee_satoshis,
+                            'locking_script': fee_script.hex()})
+        # お釣り（ordinal の 1 sat は出力 0 で出ていくので入力側の 1 と相殺）
+        change = funding_total - price - fee_satoshis - miner_fee
         if change >= chain.DUST_LIMIT:
             outputs.append({'satoshis': change,
-                            'locking_script': trailing[0]['locking_script']})
+                            'locking_script': funding[0]['locking_script']})
 
-        inputs = ([_as_template_input(u) for u in front]
-                  + [{'txid': listing.listed_outpoint.split(':')[0],
-                      'output_index': int(listing.listed_outpoint.split(':')[1]),
-                      'satoshis': 1,
-                      'locking_script': listing.ordlock_script_hex}]
-                  + [_as_template_input(u) for u in trailing])
-        listing_input_index = len(front)
-        client_signs = ([i for i in range(len(front))]
-                        + [listing_input_index + 1 + i for i in range(len(trailing))])
+        # **出品の入力を先頭に**（first-sat ordering。崩すと ordinal が届かない）
+        inputs = ([{'txid': listing.listed_outpoint.split(':')[0],
+                    'output_index': int(listing.listed_outpoint.split(':')[1]),
+                    'satoshis': 1,
+                    'locking_script': listing.ordlock_script_hex}]
+                  + [_as_template_input(u) for u in funding])
+        client_signs = [1 + i for i in range(len(funding))]
 
         unsigned_hex = _unsigned_tx_hex(inputs, outputs)
         fingerprint = tx_fingerprint(inputs, outputs)
@@ -223,9 +246,9 @@ def create_purchase_draft(*, principal: int, token: str, listing_id: int,
         'fee_satoshis': fee_satoshis,
         'miner_fee_satoshis': miner_fee,
         'ordlock_script_hex': listing.ordlock_script_hex,
-        'listing_input_index': listing_input_index,
-        'receive_vout': plan.receive_vouts[0],
-        'payout_vout': plan.payout_vouts[0],
+        'listing_input_index': LISTING_INPUT_INDEX,
+        'receive_vout': ORDINAL_VOUT,
+        'payout_vout': PAYOUT_VOUT,
         'expires_at': row.expires_at.isoformat(),
         # 端末の検証は BE の NC と同じ形で回す（§8.4）
         'template': {
@@ -387,44 +410,57 @@ def _complete_purchase_tx(row: TxTemplate, signed_hex: str) -> str:
             raise MarketError(f'output {index} was changed',
                               ErrorCode.TEMPLATE_MISMATCH, 409)
 
-    listing_index = next(i for i, item in enumerate(inputs)
-                         if item['locking_script'] == row.listing.ordlock_script_hex)
     lock_raw = bytes.fromhex(row.listing.ordlock_script_hex)
-
-    # 契約が見るのは「出力 i が payout と完全一致すること」。先に確かめる
     decoded = decode_ordlock(lock_raw)
-    bound = outputs[listing_index]
-    serialized = build_output(int(bound['satoshis']),
-                              bytes.fromhex(bound['locking_script']))
-    if serialized != decoded.payout:
-        raise MarketError(
-            f'output {listing_index} must be the seller payout',
-            ErrorCode.TEMPLATE_MISMATCH, 409)
+    if decoded is None:
+        raise MarketError('the stored listing script is not an OrdLock listing',
+                          ErrorCode.INTERNAL_ERROR, 500)
 
-    # 出品の入力を解く: <preimage> OP_0（署名は要らない）
-    preimage = _purchase_preimage(tx, listing_index, lock_raw)
-    tx.inputs[listing_index].unlocking_script = Script(
-        purchase_unlocking_script(preimage))
+    # 契約が見るのは「出力 1 が焼き込まれた payout と完全一致すること」
+    payout = outputs[PAYOUT_VOUT]
+    serialized_payout = build_output(int(payout['satoshis']),
+                                     bytes.fromhex(payout['locking_script']))
+    if serialized_payout != decoded.payout:
+        raise MarketError(f'output {PAYOUT_VOUT} must be the seller payout',
+                          ErrorCode.TEMPLATE_MISMATCH, 409)
+    if int(outputs[ORDINAL_VOUT]['satoshis']) != 1:
+        raise MarketError(f'output {ORDINAL_VOUT} must be the 1 sat ordinal',
+                          ErrorCode.TEMPLATE_MISMATCH, 409)
+
+    # 出品の入力を解く: <出力0> <出力2以降|OP_0> <preimage> OP_0（署名は要らない）
+    ordinal_output = build_output(1, bytes.fromhex(outputs[ORDINAL_VOUT]['locking_script']))
+    trailing = serialize_outputs(
+        [(int(o['satoshis']), bytes.fromhex(o['locking_script']))
+         for o in outputs[PAYOUT_VOUT + 1:]]) or None
+
+    preimage = _purchase_preimage(tx, LISTING_INPUT_INDEX, lock_raw, inputs)
+    tx.inputs[LISTING_INPUT_INDEX].unlocking_script = Script(
+        purchase_unlocking_script(ordinal_output, trailing, preimage))
     return tx.hex()
 
 
-def _purchase_preimage(tx, index: int, lock_raw: bytes) -> bytes:
+def _purchase_preimage(tx, index: int, lock_raw: bytes,
+                       declared: List[Dict[str, Any]]) -> bytes:
     """
-    SIGHASH_SINGLE|ANYONECANPAY|FORKID の preimage。
+    `ALL|ANYONECANPAY|FORKID` の preimage（参照実装 `purchaseListing` と同じ範囲）。
 
-    scriptCode は **OP_CODESEPARATOR より後ろ**（`purchase_subscript`）。
+    scriptCode は **ロックスクリプト全体**（v1 は OP_CODESEPARATOR を通らない）。
     bsv は入力の `locking_script` を scriptCode に使うので、そこへ入れる。
+
+    ⚠ hex から読み直した tx の入力は locking_script / satoshis を持たない。
+    bsv の preimage は**全入力**を直列化するので、テンプレートの申告値で
+    埋めてから計算する（埋め忘れると `NoneType has no attribute serialize`）。
     """
     from bsv import Script
     from bsv.constants import SIGHASH
 
-    subscript = purchase_subscript(lock_raw)
-    if subscript is None:
-        raise MarketError('the listing script is not an OrdLock v2 listing',
-                          ErrorCode.INTERNAL_ERROR, 500)
+    for position, item in enumerate(declared):
+        tx_in = tx.inputs[position]
+        tx_in.locking_script = Script(bytes.fromhex(item['locking_script']))
+        tx_in.satoshis = int(item['satoshis'])
 
     tx_in = tx.inputs[index]
-    tx_in.locking_script = Script(subscript)
+    tx_in.locking_script = Script(lock_raw)
     tx_in.satoshis = 1
-    tx_in.sighash = SIGHASH.SINGLE_ANYONECANPAY_FORKID
+    tx_in.sighash = SIGHASH.ALL_ANYONECANPAY_FORKID
     return tx.preimage(index)
