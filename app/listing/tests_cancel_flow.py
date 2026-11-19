@@ -72,7 +72,7 @@ class CancelDraftTests(TestCase):
         self.assertEqual(data['ordlock_script_hex'], self.listing.ordlock_script_hex)
         self.assertEqual(data['input']['txid'], LISTED_TXID)
         self.assertEqual(data['output']['locking_script'], self.receive)
-        self.assertIn('ANYONECANPAY', data['sighash'])
+        self.assertEqual(data['sighash'], 'SINGLE|ANYONECANPAY|FORKID')
         self.assertTrue(TxTemplate.objects.filter(
             template_id=data['template_id'], kind=TemplateKind.CANCEL).exists())
 
@@ -182,3 +182,99 @@ class CancelUnlockShapeTests(TestCase):
         from listing.ordlock.unlock import cancel_unlocking_script
         with self.assertRaises(ValueError):
             cancel_unlocking_script(b'\x30', b'\x02' * 10)
+
+
+@override_settings(MARKET_ENV='dev')
+class CancelTxShapeTests(TestCase):
+    """
+    署名範囲と tx の形が噛み合っていること。
+
+    市場は**売り手が署名した後に**お釣りの出力を足す（手数料は市場持ち）。
+    だから売り手の署名は `SINGLE|ANYONECANPAY` でなければならず、SINGLE が
+    効くためには **ordinal の入力と戻りの出力がどちらも 0 番**である必要がある。
+
+    `_assemble_cancel_tx` は既存テストでは丸ごとモックされていて、中の形は
+    一度も見られていなかった（実際 `tx.fee()` が元 tx を要求して落ちていた）。
+    ここで本物を組ませる。
+    """
+
+    def setUp(self):
+        from bsv import Script, Transaction, TransactionOutput
+
+        self.key = _seller_key()
+        self.listing = _listing(self.key)
+
+        # 出品 tx（OrdLock 出力 1 sat）。チェーンから引いてくる形を模す
+        self.listed = Transaction()
+        self.listed.add_output(TransactionOutput(
+            locking_script=Script(bytes.fromhex(self.listing.ordlock_script_hex)),
+            satoshis=1))
+        self.listing.listed_outpoint = f'{self.listed.txid()}:0'
+        self.listing.save(update_fields=['listed_outpoint'])
+
+        self.receive = p2pkh(bytes([0x33]) * 20).hex()
+        self.draft = cancel_service.create_cancel_draft(
+            principal=PRINCIPAL, listing_id=self.listing.id,
+            receive_script=self.receive)
+
+    def _assemble(self):
+        from bsv import P2PKH, PrivateKey, Transaction, TransactionOutput
+
+        fee_key = PrivateKey()
+        funding = Transaction()
+        funding.add_output(TransactionOutput(
+            locking_script=P2PKH().lock(fee_key.address()), satoshis=200_000))
+        raws = {funding.txid(): funding.hex(), self.listed.txid(): self.listed.hex()}
+
+        row = TxTemplate.objects.get(template_id=self.draft['template_id'])
+        with mock.patch('listing.services.chain.fee_wallet_key', return_value=fee_key), \
+             mock.patch('listing.services.chain.pick_fee_utxo',
+                        return_value={'tx_hash': funding.txid(), 'tx_pos': 0,
+                                      'value': 200_000}), \
+             mock.patch('listing.services.chain.raw_tx', side_effect=lambda t: raws[t]):
+            raw = cancel_service._assemble_cancel_tx(
+                self.listing, row, b'\x30' * 71,
+                self.key.public_key().serialize())
+        return Transaction.from_hex(raw)
+
+    def test_the_sighash_is_single_anyonecanpay(self):
+        self.assertEqual(self.draft['sighash'], 'SINGLE|ANYONECANPAY|FORKID')
+
+    def test_ordinal_input_and_return_output_are_both_first(self):
+        tx = self._assemble()
+        self.assertEqual(tx.inputs[0].source_txid, self.listed.txid())
+        self.assertEqual(tx.inputs[0].source_output_index, 0)
+        self.assertEqual(tx.outputs[0].locking_script.serialize().hex(), self.receive)
+        self.assertEqual(tx.outputs[0].satoshis, 1)
+
+    def test_market_appends_its_own_input_and_change(self):
+        """これがあるので ALL では署名できない（端末はお釣りを知り得ない）。"""
+        tx = self._assemble()
+        self.assertEqual(len(tx.inputs), 2)
+        self.assertEqual(len(tx.outputs), 2)
+        self.assertGreater(tx.outputs[1].satoshis, 0)
+
+    def test_the_seller_input_carries_the_cancel_unlock(self):
+        tx = self._assemble()
+        self.assertTrue(is_cancel_unlocking_script(
+            tx.inputs[0].unlocking_script.serialize()))
+
+    def test_a_mismatched_listing_tx_is_refused(self):
+        """WoC が別の tx を返したら、黙って別物を解こうとせず止める。"""
+        from bsv import P2PKH, PrivateKey, Transaction, TransactionOutput
+
+        fee_key = PrivateKey()
+        funding = Transaction()
+        funding.add_output(TransactionOutput(
+            locking_script=P2PKH().lock(fee_key.address()), satoshis=200_000))
+        row = TxTemplate.objects.get(template_id=self.draft['template_id'])
+
+        with mock.patch('listing.services.chain.fee_wallet_key', return_value=fee_key), \
+             mock.patch('listing.services.chain.pick_fee_utxo',
+                        return_value={'tx_hash': funding.txid(), 'tx_pos': 0,
+                                      'value': 200_000}), \
+             mock.patch('listing.services.chain.raw_tx', return_value=funding.hex()), \
+             self.assertRaises(MarketError):
+            cancel_service._assemble_cancel_tx(
+                self.listing, row, b'\x30' * 71,
+                self.key.public_key().serialize())

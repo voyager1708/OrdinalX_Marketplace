@@ -90,11 +90,29 @@ def script_unspent(locking_script: bytes) -> List[Dict[str, Any]]:
 
 
 def script_history(locking_script: bytes) -> List[Dict[str, Any]]:
-    """そのスクリプトに触れた tx の一覧（作った tx と、使った tx）。"""
+    """
+    そのスクリプトに触れた tx の一覧（作った tx と、使った tx）。
+
+    **確認済みの履歴が無いスクリプトでは 404 が返る**（mempool にしか居ない出品は
+    これ。実測）。「まだ索引に無い」と「照会が落ちた」は別なので、404 は空として扱う。
+    """
     response = _woc(f'/script/{script_hash(locking_script)}/history')
+    if response.status_code == 404:
+        return []
     if response.status_code >= 400:
         raise UpstreamError(f'could not fetch script history (HTTP {response.status_code})')
     return response.json()
+
+
+def tx_known(txid: str) -> bool:
+    """その tx をチェーン（mempool を含む）が知っているか。404 なら知らない。"""
+    response = _woc(f'/tx/hash/{txid}')
+    if response.status_code == 404:
+        return False
+    if response.status_code >= 400:
+        raise UpstreamError(f'could not look up tx {txid[:12]}… '
+                            f'(HTTP {response.status_code})')
+    return True
 
 
 def pick_fee_utxo(address: str, needed_satoshis: int) -> Dict[str, Any]:

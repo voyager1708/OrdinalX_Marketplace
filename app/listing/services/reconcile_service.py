@@ -216,7 +216,21 @@ def reconcile_listing(listing: Listing) -> Outcome:
                        after=listing.status, error=exc.__class__.__name__)
 
     if spender is None:
-        # 出品 tx 自体がチェーンにもメモリプールにも無い＝放送が通らなかった。
+        # 未使用でもなく、使った tx も見つからない。2 つの場合がある。
+        try:
+            exists = chain.tx_known(txid)
+        except Exception as exc:                # noqa: BLE001
+            return Outcome(listing_id=listing.pk, before=listing.status,
+                           after=listing.status, error=exc.__class__.__name__)
+
+        if exists:
+            # 出品 tx は在る。つまり**直前に使われた**（mempool の purchase は
+            # script history にまだ出ない。実測で 404）か、索引が遅れている。
+            # どちらにせよ**板の状態は動かさない**。採掘されれば次の周で spender が
+            # 見つかり、sold / cancelled に落ち着く。
+            return _touch(listing, 'spent_by_unknown')
+
+        # 出品 tx 自体をチェーンも mempool も知らない＝放送が通らなかった。
         # ARC が受理していても採掘されずに落ちることはある（§11）。
         if timezone.now() - listing.created_at > _grace():
             return _apply(listing, ListingStatus.INVALID, 'listing_tx_not_found')

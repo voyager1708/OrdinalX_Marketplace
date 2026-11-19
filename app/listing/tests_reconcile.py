@@ -109,10 +109,11 @@ class ScriptHashTests(TestCase):
 
 @override_settings(MARKET_ENV='dev', RECONCILE_BROADCAST_GRACE_MINUTES=30)
 class ReconcileListingTests(TestCase):
-    def _run(self, listing, unspent=None, history=None, raws=None):
+    def _run(self, listing, unspent=None, history=None, raws=None, tx_known=False):
         with mock.patch.object(chain, 'script_unspent', return_value=unspent or []), \
              mock.patch.object(chain, 'script_history', return_value=history or []), \
-             mock.patch.object(chain, 'raw_tx', side_effect=lambda t: (raws or {})[t]):
+             mock.patch.object(chain, 'raw_tx', side_effect=lambda t: (raws or {})[t]), \
+             mock.patch.object(chain, 'tx_known', return_value=tx_known):
             return reconcile_service.reconcile_listing(listing)
 
     def test_unspent_utxo_activates_a_pending_listing(self):
@@ -150,10 +151,27 @@ class ReconcileListingTests(TestCase):
         listing = _listing(status=ListingStatus.ACTIVE)
         self._run(listing,
                   unspent=[_unspent_row(txid=SPEND_TXID, vout=3)],
-                  history=[{'tx_hash': LISTED_TXID, 'height': 1}])
+                  history=[{'tx_hash': LISTED_TXID, 'height': 1}],
+                  tx_known=True)
         listing.refresh_from_db()
-        # 痕跡はあるが spender は見つからない → 猶予内なので据え置き
+        # 痕跡はあるが spender は見つからない → 据え置き
         self.assertEqual(listing.status, ListingStatus.ACTIVE)
+
+    def test_spent_but_spender_not_indexed_yet_keeps_the_status(self):
+        """
+        mempool で使われた直後は script history にまだ出ない（実測で 404）。
+        出品 tx が在ることだけは分かるので、**勝手に invalid にしない**。
+        """
+        listing = _listing(status=ListingStatus.ACTIVE)
+        Listing.objects.filter(pk=listing.pk).update(
+            created_at=timezone.now() - timedelta(hours=2))
+        listing.refresh_from_db()
+
+        outcome = self._run(listing, tx_known=True)
+        listing.refresh_from_db()
+        self.assertEqual(listing.status, ListingStatus.ACTIVE)
+        self.assertEqual(outcome.reason, 'spent_by_unknown')
+        self.assertFalse(outcome.changed)
 
     def test_cancel_unlock_closes_the_listing_as_cancelled(self):
         listing = _listing(status=ListingStatus.ACTIVE)
@@ -233,6 +251,18 @@ class ReconcileListingTests(TestCase):
         self.assertIsNotNone(listing.closed_at)
         event = ListingEvent.objects.get(listing=listing, kind=EventKind.RECONCILED)
         self.assertEqual(event.detail['reason'], 'listing_tx_not_found')
+
+    def test_tx_lookup_failure_leaves_the_status_alone(self):
+        listing = _listing(status=ListingStatus.ACTIVE)
+        with mock.patch.object(chain, 'script_unspent', return_value=[]), \
+             mock.patch.object(chain, 'script_history', return_value=[]), \
+             mock.patch.object(chain, 'tx_known',
+                               side_effect=RuntimeError('woc is down')):
+            outcome = reconcile_service.reconcile_listing(listing)
+
+        listing.refresh_from_db()
+        self.assertEqual(outcome.error, 'RuntimeError')
+        self.assertEqual(listing.status, ListingStatus.ACTIVE)
 
     def test_chain_failure_leaves_the_status_alone(self):
         listing = _listing(status=ListingStatus.ACTIVE)

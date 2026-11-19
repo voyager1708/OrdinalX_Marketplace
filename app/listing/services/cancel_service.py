@@ -8,7 +8,8 @@
     submit … 署名を受けて解錠スクリプトを組み、手数料を足して ARC へ出す
 
 手数料は**市場の fee wallet** が持つ（§10）。売り手の署名は
-`SIGHASH_ALL | ANYONECANPAY` なので、署名後に市場が自分の入力を足せる。
+`SIGHASH_SINGLE | ANYONECANPAY` なので、署名後に市場が自分の入力と
+お釣りの出力を足せる（理由は下の `CANCEL_SIGHASH`）。
 """
 
 from __future__ import annotations
@@ -44,9 +45,21 @@ from yp_marketplace.api.errors import (
 logger = logging.getLogger('market.cancel')
 audit = logging.getLogger('market.audit')
 
-# 売り手が署名する範囲。ALL は出力を固定し、ANYONECANPAY は
-# **署名の後から市場が手数料入力を足せる**ようにする（参照実装と同じ）
-CANCEL_SIGHASH = 'ALL|ANYONECANPAY|FORKID'
+# 売り手が署名する範囲。**SINGLE|ANYONECANPAY** であることが要。
+#
+# ANYONECANPAY は「署名の後から市場が手数料入力を足せる」ため。問題は出力側で、
+# 市場は署名の後に**お釣りの出力を足す**（手数料は市場持ち。§10）。ALL は全出力を
+# 署名対象にするので、端末が知り得ないお釣りが付いた瞬間に署名が無効になる
+# （ARC で "Script evaluated to false" になる）。
+#
+# SINGLE は **同じ位置の出力だけ**を署名対象にする。売り手の入力は 0 番、ordinal の
+# 戻り先も 0 番なので、売り手が固定するのは「自分の ordinal が自分の受取先へ戻る」
+# ことだけになり、市場は後ろに自由に足せる。OrdLock v2 の購入が
+# SIGHASH_SINGLE|ANYONECANPAY で入力 i ↔ 出力 i を対で検証するのと同じ考え方。
+#
+# ⚠ 入力 0 と出力 0 の対を崩すと署名が無効になる。`_assemble_cancel_tx` で
+#   ordinal の入力と戻りの出力を**どちらも先頭に置いている**のはこのため。
+CANCEL_SIGHASH = 'SINGLE|ANYONECANPAY|FORKID'
 
 CANCELLABLE = (ListingStatus.PENDING, ListingStatus.ACTIVE)
 
@@ -199,10 +212,19 @@ def _assemble_cancel_tx(listing: Listing, row: TxTemplate,
     needed = chain.estimate_fee(rough_size) + chain.DUST_LIMIT
     fee_utxo = chain.pick_fee_utxo(fee_address, needed)
     fee_source = Transaction.from_hex(chain.raw_tx(fee_utxo['tx_hash']))
+    # ordinal 入力も**元 tx を付ける**。付けないと `tx.fee()` が
+    # 「Source transactions are required for all inputs」で落ちる（手数料の
+    # 計算に入力の金額が要るため）。解錠スクリプトは既に手元にあるので
+    # 署名には使わないが、金額とスクリプトの出所はチェーンから取る。
+    listed_source = Transaction.from_hex(chain.raw_tx(listed_txid))
+    if listed_source.txid() != listed_txid:
+        # 取り違えたら「別の tx の 0 番」を解こうとする tx を出してしまう
+        raise MarketError('the listing transaction fetched from the chain does not match',
+                          ErrorCode.INTERNAL_ERROR, 500)
 
     tx = Transaction()
     tx.add_input(TransactionInput(
-        source_txid=listed_txid,
+        source_transaction=listed_source,
         source_output_index=listed_vout,
         unlocking_script=unlocking,
     ))
