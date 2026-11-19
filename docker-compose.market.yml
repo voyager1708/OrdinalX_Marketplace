@@ -110,7 +110,15 @@ services:
     # 文面の修正は restart だけで効く。
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
-    command: ["install -m 0644 -o root -g root /home/app/web/crontab /etc/cron.d/market && exec cron -f"]
+    # ⚠ cron はコンテナの env を継承しない。秘密（SQL_PASSWORD 等）は git 管理の
+    #   crontab に書けないので、ここで**コンテナの env をファイルへ落として**
+    #   tools/cron-run.sh に読ませる。これが無いと cron はジョブを起動するのに
+    #   毎回 `no password supplied` で落ち、worker が黙って止まる。
+    command: ["install -m 0644 -o root -g root /home/app/web/crontab /etc/cron.d/market
+      && install -d -m 0775 -o 1001 -g 1002 /home/app/web/logs
+      && python -c \"import os, shlex; print(''.join('export %s=%s\\n' % (k, shlex.quote(v)) for k, v in sorted(os.environ.items()) if k.split('_')[0] in ('SQL','MARKET','ARC','BE','DJANGO','WALLET','PAYMAIL','SECRET','STAGING','RECONCILE','TX')), end='')\" > /etc/market-cron.env
+      && chown root:app /etc/market-cron.env && chmod 0640 /etc/market-cron.env
+      && exec cron -f"]
     env_file:
       - ./.env.market
     environment:

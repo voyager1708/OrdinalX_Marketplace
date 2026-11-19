@@ -3,6 +3,8 @@
 # ⚠ cron はコンテナの env を継承しない。BE で「承認追跡が止まる」事故を踏んだのは
 #   これが原因だったので、DB への結線を **ここに明示する**。
 #   値は docker-compose.market.yml の market-cron の environment と揃えること。
+#   ただし**秘密（SQL_PASSWORD 等）はここに書けない**（このファイルは git 管理）。
+#   秘密はコンテナ起動時に /etc/market-cron.env へ落とし、tools/cron-run.sh が読む。
 #
 # デーモンは root で動かす（cron は非 root では pid ファイルを作れない）が、
 # ジョブは 6 列目の `app` で走らせる。ホスト側の bind mount に root 所有の
@@ -17,13 +19,13 @@ SQL_HOST=market-db
 SQL_PORT=5432
 
 # 実装済み（§11）。--quiet は「変化が無ければ黙る」でログを膨らませないため。
-*/5 *  * * * app cd /home/app/web && python manage.py reconcile_listings --quiet >> logs/cron.log 2>&1
-*    *  * * * app cd /home/app/web && python manage.py expire_templates   --quiet >> logs/cron.log 2>&1
+*/5 *  * * * app /home/app/tools/cron-run.sh reconcile_listings --quiet >> /home/app/web/logs/cron.log 2>&1
+*    *  * * * app /home/app/tools/cron-run.sh expire_templates   --quiet >> /home/app/web/logs/cron.log 2>&1
 
-# 未実装（§11）。実装したらここを開ける。
+# 未実装（§11）。実装したらここを開ける（起動は必ず tools/cron-run.sh 経由）。
 #   confirm_broadcasts は **Listing の状態は触らない**（遷移の持ち主は
 #   reconcile_listings ひとつ。2 つの worker が同じ列を書くと、どちらが正かを
 #   決められない）。Phase 3 で Purchase の放送追跡として実装する。
-# *    *  * * * app cd /home/app/web && python manage.py confirm_broadcasts >> logs/cron.log 2>&1
-# *    *  * * * app cd /home/app/web && python manage.py advance_settlements >> logs/cron.log 2>&1
-# */10 *  * * * app cd /home/app/web && python manage.py verify_reservations >> logs/cron.log 2>&1
+# *    *  * * * app /home/app/tools/cron-run.sh confirm_broadcasts  >> /home/app/web/logs/cron.log 2>&1
+# *    *  * * * app /home/app/tools/cron-run.sh advance_settlements >> /home/app/web/logs/cron.log 2>&1
+# */10 *  * * * app /home/app/tools/cron-run.sh verify_reservations >> /home/app/web/logs/cron.log 2>&1
