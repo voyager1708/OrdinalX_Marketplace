@@ -27,6 +27,14 @@ TITLES = [
 ]
 
 
+def _clear(vendor) -> int:
+    """見本データを消す。Work を消せば Edition と Listing も連れていく。"""
+    removed = Listing.objects.filter(market_env='dev',
+                                     seller_paymail='seed@spv.buxbit.net').delete()[0]
+    removed += Work.objects.filter(vendor=vendor).delete()[0]
+    return removed
+
+
 class Command(BaseCommand):
     help = 'dev の板にダミーの出品を入れる（Phase 1 の UI 確認用）'
 
@@ -45,11 +53,14 @@ class Command(BaseCommand):
             slug='seed-circle', defaults={'name': 'シード工房', 'owner_principal': 2})
 
         if options['clear']:
-            removed = Listing.objects.filter(market_env='dev',
-                                             seller_paymail='seed@spv.buxbit.net').delete()[0]
-            Work.objects.filter(vendor=vendor).delete()
-            self.stdout.write(f'ダミーを削除した（{removed} 行）')
+            self.stdout.write(f'ダミーを削除した（{_clear(vendor)} 行）')
             return
+
+        # 入れ直しは**必ず消してから**。reconcile_listings（§11）が見本データを
+        # invalid に落とす（スクリプトもチェーン上の痕跡も無いので突き合わせられない）。
+        # つまり seed は何度も打ち直すことになるのに、Edition.nft_origin は一意なので
+        # 消さずに入れると 2 回目が IntegrityError で落ちる。
+        _clear(vendor)
 
         random.seed(20261118)
         created = 0
