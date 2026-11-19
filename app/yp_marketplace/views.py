@@ -70,3 +70,27 @@ class MarketMineView(TemplateView):
     """`/market/mine` — 自分の出品と取り下げ（§8.3）。"""
 
     template_name = 'market/mine.html'
+
+
+class MarketBuyView(TemplateView):
+    """
+    `/market/listing/<id>` — 1 件の詳細と購入（§8.3）。
+
+    板と同じく**ログイン前でも見せる**（集客のため。§6）。購入を押した時点で
+    JS がサインインを確かめる。出品が見えない（blocklist・env 違い）ときは 404。
+    """
+
+    template_name = 'market/buy.html'
+
+    def get_context_data(self, **kwargs):
+        from django.http import Http404
+
+        from listing.queries import visible_listings
+
+        context = super().get_context_data(**kwargs)
+        listing = visible_listings(status='').filter(id=kwargs['listing_id']).first()
+        if listing is None:
+            raise Http404('listing not found')
+        context['listing'] = listing
+        context['fee_percent'] = listing.fee_bps / 100
+        return context

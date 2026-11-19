@@ -1,0 +1,105 @@
+{% extends "components/wallet-base.html" %}
+{% comment %}
+購入の画面（Specification.md §8.3、Phase 3）。
+
+1 本の tx で **NFT と代金が同時に動く**（原子的）。市場は組んで放送するだけで、
+買い手の鍵には触れない。端末は署名の前に
+
+  - ordinal が**自分の受取先**へ 1 sat で来るか
+  - 売り手への払いが**ロックに焼き込まれた額**と一致するか
+  - 市場手数料の告知が計算と合うか
+  - **出品の入力まで署名させられていないか**
+
+を見る（§8.4 の Buy 行）。検証を省いた実装はマージしない（§14-2）。
+{% endcomment %}
+{% load humanize static %}
+
+{% block content %}
+  <div class="s006-card sm:max-w-[560px] mx-auto mt-10 s006-fade-in"
+       data-listing-id="{{ listing.id }}">
+    <div class="gaudi-mosaic -mt-1 mb-5" aria-hidden="true"></div>
+
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p class="s006-eyebrow">Marketplace</p>
+        <h1 class="s006-sub font-semibold">{{ listing.work.title|default:"作品"|truncatechars:30 }}</h1>
+      </div>
+      <a href="{% url 'index' %}" class="s006-tap rounded-full" aria-label="板へ戻る">
+        <i class="bi bi-arrow-left text-xl" aria-hidden="true"></i>
+      </a>
+    </div>
+
+    <dl class="s006-txlist" role="list">
+      <div class="s006-tx">
+        <div class="s006-tx__body">
+          <dt class="s006-meta">出品者</dt>
+          <dd class="s006-tx__title">{{ listing.work.vendor.name|default:"—" }}</dd>
+        </div>
+      </div>
+      <div class="s006-tx">
+        <div class="s006-tx__body">
+          <dt class="s006-meta">価格</dt>
+          <dd class="s006-tx__title s006-num" id="buy-price"
+              data-price="{{ listing.price_satoshis }}">
+            {{ listing.price_satoshis|intcomma }} <span class="s006-sub">sat</span>
+          </dd>
+        </div>
+      </div>
+      <div class="s006-tx">
+        <div class="s006-tx__body">
+          <dt class="s006-meta">市場手数料（{{ fee_percent }}%・買い手負担ではなく売上から）</dt>
+          <dd class="s006-tx__title s006-num" id="buy-fee"
+              data-fee-bps="{{ listing.fee_bps }}">—</dd>
+        </div>
+      </div>
+    </dl>
+
+    <div id="buy-signin" class="s006-empty hidden mt-6">
+      <div class="s006-empty__icon"><i class="bi bi-person-lock" aria-hidden="true"></i></div>
+      <p class="s006-empty__title">サインインが必要です</p>
+      <p class="s006-empty__body">購入はウォレットの鍵で署名します。</p>
+      <a href="{{ kit_urls.dashboard }}" class="s006-btn s006-btn--primary mt-4">ウォレットへ</a>
+    </div>
+
+    <div id="buy-main" class="mt-6">
+      {% if listing.status != 'active' %}
+        <div class="s006-empty">
+          <div class="s006-empty__icon"><i class="bi bi-hourglass" aria-hidden="true"></i></div>
+          <p class="s006-empty__title">いま買えません</p>
+          <p class="s006-empty__body">この出品は「{{ listing.status }}」です。</p>
+        </div>
+      {% else %}
+        <button type="button" id="buy-submit" class="s006-btn s006-btn--primary w-full">
+          署名して購入する
+        </button>
+        <p class="s006-meta mt-3">
+          1 本の取引で NFT と代金が同時に動きます。マイナー手数料は買い手の負担です。
+        </p>
+        <p id="buy-status" class="s006-meta mt-3" role="status" aria-live="polite"></p>
+        <p id="buy-error" class="s006-meta text-red-600 mt-2 hidden" role="alert"></p>
+      {% endif %}
+    </div>
+
+    <section id="buy-done" class="hidden mt-6">
+      <div class="s006-empty">
+        <div class="s006-empty__icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
+        <p class="s006-empty__title">購入しました</p>
+        <p class="s006-empty__body">
+          作品はウォレットに入ります（反映まで数分かかります）。
+          <span id="buy-txid" class="s006-num block mt-2 break-all"></span>
+        </p>
+        <a href="{{ kit_urls.nfts }}" class="s006-btn s006-btn--primary mt-4">自分の NFT を見る</a>
+      </div>
+    </section>
+  </div>
+
+  {% include "market/partials/unlock.html" %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/nc-wallet.js' %}"></script>
+  <script src="{% static 'js/nc-send.js' %}" defer></script>
+  <script src="{% static 'js/nc-listing.js' %}" defer></script>
+  <script src="{% static 'js/market-sign.js' %}" defer></script>
+  <script src="{% static 'js/market-buy.js' %}" defer></script>
+{% endblock %}

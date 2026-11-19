@@ -33,6 +33,7 @@ const OWN = [
    'market-sign.js',
    'market-sell.js',
    'market-mine.js',
+   'market-buy.js',
 ];
 
 const COMMON = {

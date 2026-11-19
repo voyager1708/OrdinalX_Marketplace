@@ -19,9 +19,14 @@
   <ul class="s006-txlist" role="list">
     {% for listing in listings %}
       <li class="s006-tx">
-        <div class="s006-tx__icon"><i class="bi bi-image" aria-hidden="true"></i></div>
+        <a href="{% url 'buy' listing.id %}" class="s006-tx__icon s006-tap"
+           aria-label="{{ listing.work.title|default:listing.nft_origin|truncatechars:20 }} を見る">
+          <i class="bi bi-image" aria-hidden="true"></i>
+        </a>
         <div class="s006-tx__body">
-          <p class="s006-tx__title">{{ listing.work.title|default:listing.nft_origin|truncatechars:38 }}</p>
+          <p class="s006-tx__title">
+            <a href="{% url 'buy' listing.id %}">{{ listing.work.title|default:listing.nft_origin|truncatechars:38 }}</a>
+          </p>
           <p class="s006-meta">
             {{ listing.work.vendor.name|default:"—" }}
             {% if listing.edition %}・#{{ listing.edition.serial }}/{{ listing.edition.total }}{% endif %}

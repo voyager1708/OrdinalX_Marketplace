@@ -21,6 +21,7 @@ from drf_spectacular.views import (
 from yp_marketplace.views import (
     MarketBoardFragmentView,
     MarketIndexView,
+    MarketBuyView,
     MarketMineView,
     MarketSellView,
 )
@@ -49,6 +50,7 @@ urlpatterns = [
     # 出品と取り下げ（Phase 2）。認証は JS 側（市場は認証主体を持たない）
     path('market/sell', MarketSellView.as_view(), name='sell'),
     path('market/mine', MarketMineView.as_view(), name='mine'),
+    path('market/listing/<int:listing_id>', MarketBuyView.as_view(), name='buy'),
 ]
 
 # 板・作品・購入の API（§6）は Phase 1 以降でここに足す。

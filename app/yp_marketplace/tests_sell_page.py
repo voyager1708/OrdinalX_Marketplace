@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 from django.conf import settings
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 KIT_DIR = Path(settings.WALLET_KIT_DIR)
@@ -115,3 +115,57 @@ class BuiltAssetTests(SimpleTestCase):
         self.assertTrue('SINGLE|ANYONECANPAY|FORKID' in bundled,
                         '取り下げの署名範囲がバンドルに無い')
         self.assertTrue('signCancel' in bundled, 'signCancel がバンドルに無い')
+
+
+@skip_without_kit
+class BuyPageTests(TestCase):
+    """購入の画面（§8.3・§8.4）。"""
+
+    def setUp(self):
+        from listing.models import Listing, ListingStatus
+
+        self.listing = Listing.objects.create(
+            nft_origin='aa' * 32 + '_0', seller_principal=2,
+            payout_script='76a914' + '11' * 20 + '88ac',
+            price_satoshis=60_000, fee_bps=250,
+            ordlock_script_hex='00', listed_outpoint='bb' * 32 + ':0',
+            status=ListingStatus.ACTIVE, market_env=settings.MARKET_ENV)
+        self.url = reverse('buy', args=[self.listing.id])
+        self.html = self.client.get(self.url).content.decode()
+
+    def test_page_is_served_without_signing_in(self):
+        """板と同じく集客のため見せる（§6）。買うときに JS が確かめる。"""
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+    def test_unknown_listing_is_404(self):
+        self.assertEqual(self.client.get(reverse('buy', args=[999999])).status_code, 404)
+
+    def test_a_blocked_listing_is_not_shown(self):
+        """運営が止めたものは「無い」として扱う（存在を漏らさない。§9.1）。"""
+        from listing.models import BlockedContent, BlockedKind
+
+        BlockedContent.objects.create(kind=BlockedKind.NFT_ORIGIN,
+                                      value=self.listing.nft_origin, reason='test')
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_it_loads_the_signing_core(self):
+        for script in ('nc-wallet', 'nc-send', 'nc-listing', 'market-sign', 'market-buy'):
+            self.assertTrue(f'js/{script}' in self.html, f'{script} を読んでいない')
+
+    def test_it_hands_the_device_the_price_and_fee_rate(self):
+        """端末は**画面に出した値**とロックの中身を突き合わせる（§14-3・§14-4）。"""
+        self.assertTrue('data-price="60000"' in self.html, '価格を端末に渡していない')
+        self.assertTrue('data-fee-bps="250"' in self.html, '手数料率を端末に渡していない')
+        self.assertTrue(f'data-listing-id="{self.listing.id}"' in self.html)
+
+    def test_a_listing_that_is_not_active_cannot_be_bought(self):
+        from listing.models import Listing, ListingStatus
+
+        Listing.objects.filter(pk=self.listing.pk).update(status=ListingStatus.SOLD)
+        html = self.client.get(self.url).content.decode()
+        self.assertFalse('id="buy-submit"' in html, '売り切れでも購入ボタンが出ている')
+
+    def test_the_board_links_to_the_listing(self):
+        board = self.client.get(reverse('board-fragment')).content.decode()
+        self.assertTrue(reverse('buy', args=[self.listing.id]) in board,
+                        '板から購入の画面へ行けない')
