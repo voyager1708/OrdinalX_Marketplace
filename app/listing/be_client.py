@@ -24,6 +24,10 @@ logger = logging.getLogger('market.be')
 NFT_TEMPLATE_PATH = '/api/v1/nc/nft/template/'
 BROADCAST_PATH = '/api/v1/nc/transaction/broadcast/'
 USER_NFTS_PATH = '/api/v1/user/nfts/info'
+NC_UTXOS_PATH = '/api/v1/nc/utxos/'
+# 買い手の ordinal 受取先。**必ずこれを使う**（§8.3）。BE に登録済みの
+# 導出アドレスでないと、成約後に BE が NFT を再紐付けできず見えなくなる
+NFT_LEGACY_ADDRESS_PATH = '/api/v1/nft/legacy-address'
 
 TIMEOUT_SECONDS = 30
 # 放送は ARC の応答待ちが入る。BE 側は ARC_CALLBACK_URL が未設定だと
@@ -45,6 +49,14 @@ class BackendClient:
     def list_nfts(self) -> Any:
         """利用者が持つ NFT の一覧（所有確認の速い経路。§7）。"""
         return self._get(USER_NFTS_PATH)
+
+    def list_utxos(self) -> Any:
+        """買い手の支払い入力（§8.3）。導出パス付きで返る＝端末が署名できる。"""
+        return self._get(NC_UTXOS_PATH)
+
+    def nft_legacy_addresses(self) -> Any:
+        """BE が NFT の受け先として知っているアドレス（§8.3）。"""
+        return self._get(NFT_LEGACY_ADDRESS_PATH)
 
     # -- テンプレート ---------------------------------------------------
     def nft_script_template(self, nft_origin: str, recipient_locking_script: str,

@@ -44,4 +44,9 @@ SLOTS = (
 PREFIX_HEX = TEMPLATE_HEX[:436 * 2]
 
 # キャンセルの unlock が先頭に積むマーカー（ASCII "ol2:cancel"）
+# OP_CODESEPARATOR の位置（購入の枝の中、2 つのスロットより前）。
+# 購入の preimage の scriptCode は **ここより後ろ全部**（参照実装 `purchaseListing`）。
+# 参照実装の artifact の `codeSeparatorIndex` と同じ値。
+CODESEP_INDEX = 6
+
 CANCEL_MARKER = bytes.fromhex('6f6c323a63616e63656c')

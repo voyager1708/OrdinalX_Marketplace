@@ -17,6 +17,11 @@ urlpatterns = [
          views.ListingCancelDraftAPIView.as_view(), name='cancel-draft'),
     path('listings/<int:listing_id>/cancel/submit',
          views.ListingCancelSubmitAPIView.as_view(), name='cancel-submit'),
+    # 購入（認証必須・§8.3）。Phase 3
+    path('purchases/draft', views.PurchaseDraftAPIView.as_view(), name='purchase-draft'),
+    path('purchases/submit', views.PurchaseSubmitAPIView.as_view(), name='purchase-submit'),
+
     path('me/listings', views.MyListingsAPIView.as_view(), name='my-listings'),
+    path('me/purchases', views.MyPurchasesAPIView.as_view(), name='my-purchases'),
     path('me/nfts', views.MyNftsAPIView.as_view(), name='my-nfts'),
 ]

@@ -21,11 +21,11 @@ from rest_framework.views import APIView
 
 from chain.models import NftCache
 from listing.be_client import BackendClient
-from listing.models import Listing, ListingStatus, PurchaseStatus
+from listing.models import Listing, ListingStatus, Purchase, PurchaseStatus
 from listing.queries import blocked_origins, sorted_listings, visible_listings
 from listing.serializers import ListingSerializer, StatsSerializer
 from yp_marketplace.api import ErrorCode, error, success
-from listing.services import cancel_service, listing_service
+from listing.services import cancel_service, listing_service, purchase_service
 from yp_marketplace.api.throttles import (
     MarketDraftRateThrottle,
     MarketPublicRateThrottle,
@@ -262,6 +262,68 @@ class MyListingsAPIView(AuthenticatedAPIView):
                 .select_related('work', 'edition')
                 .order_by('-created_at')[:DEFAULT_PAGE_SIZE])
         return success({'listings': ListingSerializer(rows, many=True).data})
+
+
+class PurchaseDraftAPIView(AuthenticatedAPIView):
+    throttle_classes = [MarketDraftRateThrottle]
+
+    @extend_schema(summary='購入の未署名テンプレートを作る', tags=['market'])
+    def post(self, request):
+        body = request.data or {}
+        missing = [k for k in ('listing_id', 'receive_script') if not body.get(k)]
+        if missing:
+            return error(f'missing: {", ".join(missing)}', ErrorCode.MISSING_PARAMETER, 400)
+        try:
+            listing_id = int(body['listing_id'])
+        except (TypeError, ValueError):
+            return error('listing_id must be an integer', ErrorCode.INVALID_REQUEST, 400)
+
+        data = purchase_service.create_purchase_draft(
+            principal=self.principal_id(request),
+            token=self.bearer(request),
+            listing_id=listing_id,
+            receive_script=str(body['receive_script']),
+        )
+        return success(data)
+
+
+class PurchaseSubmitAPIView(AuthenticatedAPIView):
+    throttle_classes = [MarketSubmitRateThrottle]
+
+    @extend_schema(summary='署名済みの購入 tx を放送する', tags=['market'])
+    def post(self, request):
+        body = request.data or {}
+        missing = [k for k in ('template_id', 'signed_transaction_hex') if not body.get(k)]
+        if missing:
+            return error(f'missing: {", ".join(missing)}', ErrorCode.MISSING_PARAMETER, 400)
+
+        data = purchase_service.submit_purchase(
+            principal=self.principal_id(request),
+            template_id=str(body['template_id']),
+            signed_transaction_hex=str(body['signed_transaction_hex']),
+        )
+        return success(data)
+
+
+class MyPurchasesAPIView(AuthenticatedAPIView):
+    @extend_schema(summary='自分の購入', tags=['market'])
+    def get(self, request):
+        rows = (Purchase.objects
+                .filter(buyer_principal=self.principal_id(request),
+                        market_env=_market_env())
+                .select_related('listing', 'listing__work')
+                .order_by('-created_at')[:DEFAULT_PAGE_SIZE])
+        return success({'purchases': [{
+            'id': row.id,
+            'listing_id': row.listing_id,
+            'work_title': getattr(row.listing.work, 'title', '') or '',
+            'nft_origin': row.listing.nft_origin,
+            'paid_satoshis': row.paid_satoshis,
+            'fee_satoshis': row.fee_satoshis,
+            'status': row.status,
+            'txid': row.txid or '',
+            'created_at': row.created_at.isoformat(),
+        } for row in rows]})
 
 
 class MyNftsAPIView(AuthenticatedAPIView):
