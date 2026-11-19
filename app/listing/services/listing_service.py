@@ -182,11 +182,18 @@ def create_listing_draft(*, principal: int, token: str, nft_origin: str,
 
     # 端末が検証できるように、BE のテンプレートをそのまま渡す（§8.4）。
     # 端末は自分で OrdLock を組み直して**完全一致**を確かめてから署名する。
+    # 手数料は **script で強制されない**（§14-4）。だから「いくら取るか」を
+    # 告知し、端末に計算し直させる（キットの `assertAnnouncedFee`）。
+    fee_satoshis = price_satoshis * listing.fee_bps // 10_000
+
     return {
         'listing_id': listing.id,
         'template_id': str(row.template_id),
         'tx_fingerprint': fingerprint,
         'ordlock_script_hex': locking_script.hex(),
+        'price_satoshis': price_satoshis,
+        'fee_bps': listing.fee_bps,
+        'fee_satoshis': fee_satoshis,
         'expires_at': row.expires_at.isoformat(),
         'template': template,
     }

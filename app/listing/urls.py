@@ -18,4 +18,5 @@ urlpatterns = [
     path('listings/<int:listing_id>/cancel/submit',
          views.ListingCancelSubmitAPIView.as_view(), name='cancel-submit'),
     path('me/listings', views.MyListingsAPIView.as_view(), name='my-listings'),
+    path('me/nfts', views.MyNftsAPIView.as_view(), name='my-nfts'),
 ]

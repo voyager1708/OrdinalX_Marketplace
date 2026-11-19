@@ -211,3 +211,32 @@ class ListingSubmitTests(TestCase):
         self.assertEqual(listing.status, ListingStatus.DRAFT)
         self.assertTrue(ListingEvent.objects.filter(
             kind=EventKind.BROADCAST_FAIL, listing_id=listing.id).exists())
+
+
+@override_settings(MARKET_ENV='dev', MARKET_DEV_PRINCIPALS=[str(PRINCIPAL)],
+                   BE_API_BASE_URL='http://be.invalid:8002', MARKET_FEE_BPS=250)
+class AnnouncedFeeTests(TestCase):
+    """
+    手数料は **script で強制されない**（§14-4）。だから draft で「いくら取るか」を
+    告知し、端末が計算し直す（キットの `assertAnnouncedFee`）。告知が無いと
+    端末は突き合わせる相手を失う。
+    """
+
+    def _draft(self, price=PRICE):
+        with mock.patch('listing.be_client.BackendClient.nft_script_template') as be:
+            be.side_effect = lambda **kw: _fake_template(kw['recipient_locking_script'])
+            return listing_service.create_listing_draft(
+                principal=PRINCIPAL, token=TOKEN, nft_origin=NFT_ORIGIN,
+                price_satoshis=price, payout_script=PAYOUT_SCRIPT,
+                cancel_pubkey=_cancel_pubkey())
+
+    def test_the_draft_announces_the_fee(self):
+        data = self._draft()
+        self.assertEqual(data['fee_bps'], 250)
+        self.assertEqual(data['fee_satoshis'], PRICE * 250 // 10_000)
+        self.assertEqual(data['price_satoshis'], PRICE)
+
+    def test_the_announced_fee_rounds_down_like_the_kit(self):
+        """端末は `Math.floor(price * bps / 10000)`。Python 側も切り捨てで揃える。"""
+        data = self._draft(price=1_111)
+        self.assertEqual(data['fee_satoshis'], 1_111 * 250 // 10_000)

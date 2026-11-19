@@ -1,0 +1,50 @@
+{% extends "components/wallet-base.html" %}
+{% comment %}
+自分の出品（Specification.md §8.3、Phase 2）。
+
+できるのは「見る」と「取り下げる」。取り下げも**端末の署名**が要る
+（ロックに焼き込まれた鍵でしか解けない）。市場は手数料を出して放送するだけ。
+
+中身は `market-mine.js` が `/market/api/v1/me/listings` から描く。
+{% endcomment %}
+{% load static %}
+
+{% block content %}
+  <div class="s006-card sm:max-w-[560px] mx-auto mt-10 s006-fade-in">
+    <div class="gaudi-mosaic -mt-1 mb-5" aria-hidden="true"></div>
+
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p class="s006-eyebrow">Marketplace</p>
+        <h1 class="s006-sub font-semibold">自分の出品</h1>
+      </div>
+      <a href="{% url 'sell' %}" class="s006-tap rounded-full" aria-label="出品する">
+        <i class="bi bi-plus-lg text-xl" aria-hidden="true"></i>
+      </a>
+    </div>
+
+    <div id="mine-signin" class="s006-empty hidden">
+      <div class="s006-empty__icon"><i class="bi bi-person-lock" aria-hidden="true"></i></div>
+      <p class="s006-empty__title">サインインが必要です</p>
+      <a href="{{ kit_urls.dashboard }}" class="s006-btn s006-btn--primary mt-4">ウォレットへ</a>
+    </div>
+
+    <div id="mine-list">
+      <div class="s006-skel s006-skel--line" aria-hidden="true"></div>
+      <div class="s006-skel s006-skel--line" aria-hidden="true"></div>
+      <p class="s006-meta sr-only">自分の出品を読み込んでいます</p>
+    </div>
+
+    <p id="mine-status" class="s006-meta mt-3" role="status" aria-live="polite"></p>
+    <p id="mine-error" class="s006-meta text-red-600 mt-2 hidden" role="alert"></p>
+  </div>
+
+  {% include "market/partials/unlock.html" %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/nc-wallet.js' %}"></script>
+  <script src="{% static 'js/nc-listing.js' %}" defer></script>
+  <script src="{% static 'js/market-sign.js' %}" defer></script>
+  <script src="{% static 'js/market-mine.js' %}" defer></script>
+{% endblock %}

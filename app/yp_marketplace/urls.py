@@ -18,7 +18,12 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-from yp_marketplace.views import MarketBoardFragmentView, MarketIndexView
+from yp_marketplace.views import (
+    MarketBoardFragmentView,
+    MarketIndexView,
+    MarketMineView,
+    MarketSellView,
+)
 
 _admin_url = settings.ADMIN_URL if settings.ADMIN_URL.endswith('/') else settings.ADMIN_URL + '/'
 
@@ -40,6 +45,10 @@ urlpatterns = [
     path('market/', MarketIndexView.as_view(), name='index'),
     # 板の中身。骨組みを先に返して HTMX が取りに来る（S012 §8.1 の画面の作法）
     path('market/board', MarketBoardFragmentView.as_view(), name='board-fragment'),
+
+    # 出品と取り下げ（Phase 2）。認証は JS 側（市場は認証主体を持たない）
+    path('market/sell', MarketSellView.as_view(), name='sell'),
+    path('market/mine', MarketMineView.as_view(), name='mine'),
 ]
 
 # 板・作品・購入の API（§6）は Phase 1 以降でここに足す。

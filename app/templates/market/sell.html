@@ -1,0 +1,96 @@
+{% extends "components/wallet-base.html" %}
+{% comment %}
+出品の画面（Specification.md §8.2、Phase 2）。
+
+手順は 3 つで、**どれも端末が主役**:
+  1. 手持ちの NFT を選ぶ（市場が BE から中継した一覧）
+  2. 価格を決める（この値が OrdLock に焼き込まれる＝あとから変えられない）
+  3. 署名して出品（端末がテンプレートを検証してから署名する。§14-2）
+
+画面は骨組みだけを返し、中身は `market-sell.js` が API から描く。板（index）と
+違い**ログインが要る**ので、サインインしていなければ案内に差し替える。
+{% endcomment %}
+{% load humanize static %}
+
+{% block content %}
+  <div class="s006-card sm:max-w-[560px] mx-auto mt-10 s006-fade-in">
+    <div class="gaudi-mosaic -mt-1 mb-5" aria-hidden="true"></div>
+
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p class="s006-eyebrow">Marketplace</p>
+        <h1 class="s006-sub font-semibold">作品を出品する</h1>
+      </div>
+      <a href="{% url 'index' %}" class="s006-tap rounded-full" aria-label="板へ戻る">
+        <i class="bi bi-arrow-left text-xl" aria-hidden="true"></i>
+      </a>
+    </div>
+
+    {# サインインしていないとき。JS が auth_required を受けたら出す #}
+    <div id="sell-signin" class="s006-empty hidden">
+      <div class="s006-empty__icon"><i class="bi bi-person-lock" aria-hidden="true"></i></div>
+      <p class="s006-empty__title">サインインが必要です</p>
+      <p class="s006-empty__body">出品はウォレットの鍵で署名します。</p>
+      <a href="{{ kit_urls.dashboard }}" class="s006-btn s006-btn--primary mt-4">ウォレットへ</a>
+    </div>
+
+    <div id="sell-main">
+      {# ① NFT を選ぶ #}
+      <section aria-labelledby="sell-step1">
+        <h2 id="sell-step1" class="s006-label mb-2">① 出品する作品</h2>
+        <div id="sell-nfts">
+          <div class="s006-skel s006-skel--line" aria-hidden="true"></div>
+          <div class="s006-skel s006-skel--line" aria-hidden="true"></div>
+          <p class="s006-meta sr-only">手持ちの作品を読み込んでいます</p>
+        </div>
+      </section>
+
+      {# ② 価格 #}
+      <section aria-labelledby="sell-step2" class="mt-6">
+        <h2 id="sell-step2" class="s006-label mb-2">② 価格（satoshi）</h2>
+        <input id="sell-price" type="number" min="1" step="1" inputmode="numeric"
+               data-fee-bps="{{ fee_bps }}"
+               class="s006-input w-full s006-num" placeholder="100000" />
+        <p class="s006-meta mt-2">
+          価格は<strong>ロックスクリプトに焼き込まれる</strong>ので、出品後は変えられません
+          （変えるには取り下げて出し直します）。成約時の市場手数料は
+          <span class="s006-num">{{ fee_percent }}</span>%（
+          <span id="sell-fee" class="s006-num">—</span> sat）で、
+          署名の前に端末が計算し直します。
+        </p>
+      </section>
+
+      {# ③ 署名して出品 #}
+      <section class="mt-6">
+        <button type="button" id="sell-submit" class="s006-btn s006-btn--primary w-full" disabled>
+          署名して出品する
+        </button>
+        <p id="sell-status" class="s006-meta mt-3" role="status" aria-live="polite"></p>
+        <p id="sell-error" class="s006-meta text-red-600 mt-2 hidden" role="alert"></p>
+      </section>
+
+      {# 結果 #}
+      <section id="sell-done" class="hidden mt-6">
+        <div class="s006-empty">
+          <div class="s006-empty__icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
+          <p class="s006-empty__title">出品を放送しました</p>
+          <p class="s006-empty__body">
+            チェーンに載ると板に並びます（数分かかります）。
+            <span id="sell-txid" class="s006-num block mt-2 break-all"></span>
+          </p>
+          <a href="{% url 'mine' %}" class="s006-btn s006-btn--primary mt-4">自分の出品を見る</a>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  {% include "market/partials/unlock.html" %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/nc-wallet.js' %}"></script>
+  <script src="{% static 'js/nc-send.js' %}" defer></script>
+  <script src="{% static 'js/nc-listing.js' %}" defer></script>
+  <script src="{% static 'js/market-sign.js' %}" defer></script>
+  <script src="{% static 'js/market-sell.js' %}" defer></script>
+{% endblock %}

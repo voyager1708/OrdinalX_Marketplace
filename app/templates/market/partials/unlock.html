@@ -1,0 +1,35 @@
+{% comment %}
+解錠ダイアログ（市場のもの）。
+
+鍵はこの端末の IndexedDB にあり、**市場も BE も署名できない**。出品と取り下げの
+直前にここでウォレットパスワードを受け取り、`market-sign.js` が復号して署名する。
+
+ウォレット側の `partials/nc_unlock_modal.html` とは別物（生体解錠は未対応）。
+キットに入れていないのは、どちらの画面に出すかが各リポジトリの判断だから
+（nav-extra.html と同じ理由）。
+
+JS が読む id（変更注意 — src/js/market-sign.js）:
+  market-unlock, market-unlock-password, market-unlock-confirm,
+  market-unlock-cancel, market-unlock-error, market-unlock-title
+{% endcomment %}
+<div id="market-unlock" class="hidden fixed inset-0 z-[80] overflow-y-auto" role="dialog"
+     aria-modal="true" aria-labelledby="market-unlock-title">
+  <div class="sm:max-w-lg sm:w-full m-3 sm:mx-auto mt-16">
+    <div class="s006-card">
+      <h3 id="market-unlock-title" class="s006-sub font-semibold mb-1">ウォレットの解錠</h3>
+      <p class="s006-meta mb-4">
+        署名はこの端末で行います。パスワードは端末の外に出ません。
+      </p>
+      <label class="s006-label" for="market-unlock-password">ウォレットパスワード</label>
+      <input id="market-unlock-password" type="password" autocomplete="current-password"
+             class="s006-input w-full" />
+      <p id="market-unlock-error" class="s006-meta text-red-600 mt-2 hidden" role="alert"></p>
+      <div class="flex gap-2 mt-5">
+        <button type="button" id="market-unlock-confirm" class="s006-btn s006-btn--primary flex-1">
+          解錠して署名
+        </button>
+        <button type="button" id="market-unlock-cancel" class="s006-btn flex-1">やめる</button>
+      </div>
+    </div>
+  </div>
+</div>

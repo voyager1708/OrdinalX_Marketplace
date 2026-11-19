@@ -9,6 +9,7 @@ UI は版を固定した UI キットのシェルの上に描く。市場は認�
 チェーン照会が入ると遅くなるので、最初からこの形にしておく。
 """
 
+from django.conf import settings
 from django.views.generic import TemplateView
 
 from listing.queries import sorted_listings, visible_listings
@@ -42,3 +43,30 @@ class MarketBoardFragmentView(TemplateView):
             'is_empty': not listings,
         })
         return context
+
+
+class MarketSellView(TemplateView):
+    """
+    `/market/sell` — 出品の画面（§8.2）。
+
+    ログインは **JS が判定する**（市場は認証主体を持たない。§7）。サーバ側で
+    弾かないのは、板と同じシェルを出してから案内に差し替えるほうが、
+    サインインの往復で画面が真っ白にならないため。
+
+    手数料率だけは画面に出す必要があるので context で渡す。**端末は署名の前に
+    draft の告知額を計算し直す**（§14-4）ので、ここの値は表示専用。
+    """
+
+    template_name = 'market/sell.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['fee_bps'] = settings.MARKET_FEE_BPS
+        context['fee_percent'] = settings.MARKET_FEE_BPS / 100
+        return context
+
+
+class MarketMineView(TemplateView):
+    """`/market/mine` — 自分の出品と取り下げ（§8.3）。"""
+
+    template_name = 'market/mine.html'

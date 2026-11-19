@@ -20,16 +20,40 @@ const ENTRIES = [
    'gaudi.js',
    'gaudi-nav.js',
    'localtime.js',
+   // 署名コア（Phase 2 の出品・取り下げ）。鍵は端末の IndexedDB にあり、
+   // 市場も BE も署名できないので、画面側にこれが要る。
+   'nc-wallet.js',
+   'nc-send.js',
+   'nc-listing.js',
 ];
 
-await build({
-   entryPoints: ENTRIES.map((f) => `${KIT}/${f}`),
+// 市場が自分で書く画面のコントローラ。キットの window.* を使うだけで、
+// 暗号の実体は持たない（持つと「キットと市場で実装が 2 つ」になる）。
+const OWN = [
+   'market-sign.js',
+   'market-sell.js',
+   'market-mine.js',
+];
+
+const COMMON = {
    outdir: 'static/js',
    bundle: true,
+   // キットは app/ の外（vendor/ の submodule）にあるので、esbuild は
+   // キットの隣から node_modules を探して失敗する。市場の node_modules を
+   // 明示する（@bsv/sdk などキットの依存はこちらに入れてある）。
+   nodePaths: ['node_modules'],
    format: 'iife',
-   target: ['es2019'],
+   // 署名コアは @bsv/sdk を通して BigInt を使う。es2019 ではビルドが落ちるので
+   // es2020（Safari 14 / Chrome 80 以降）。PWA の対象はそれより新しい。
+   target: ['es2020'],
    logLevel: 'info',
-});
+};
+
+// **2 回に分ける**。入り口の根が 2 つ（キットと市場）あると esbuild が
+// 共通の親からのディレクトリ構造を出力に残し、static/js/vendor/... のような
+// 階層ができてしまう（シェルの {% static %} は平らな名前を指している）。
+await build({ ...COMMON, entryPoints: ENTRIES.map((f) => `${KIT}/${f}`) });
+await build({ ...COMMON, entryPoints: OWN.map((f) => `src/js/${f}`) });
 
 // シェルのレイアウト CSS（safe-area・.app-header・ボトムタブ）。ビルドは要らず、
 // キットのものをそのまま配る。シェルは app.css より**先**に読むので、

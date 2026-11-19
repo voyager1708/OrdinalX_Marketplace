@@ -20,6 +20,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from chain.models import NftCache
+from listing.be_client import BackendClient
 from listing.models import Listing, ListingStatus, PurchaseStatus
 from listing.queries import blocked_origins, sorted_listings, visible_listings
 from listing.serializers import ListingSerializer, StatsSerializer
@@ -261,6 +262,46 @@ class MyListingsAPIView(AuthenticatedAPIView):
                 .select_related('work', 'edition')
                 .order_by('-created_at')[:DEFAULT_PAGE_SIZE])
         return success({'listings': ListingSerializer(rows, many=True).data})
+
+
+class MyNftsAPIView(AuthenticatedAPIView):
+    """
+    出品できる手持ちの NFT（§6・§7）。
+
+    市場は所有を自分で持たない。BE の所有一覧を**利用者の Bearer のまま中継**し、
+    板の都合（すでに出品中・運営 blocklist）だけを足して返す。
+
+    ここを置かずに画面から BE を直叩きにすると、FE のプロキシ（`/api/v1/nc/...`）
+    に無いパスを足す話になり、市場が FE の内部に依存してしまう（S009 §15）。
+    """
+
+    @extend_schema(summary='出品できる手持ちの NFT', tags=['market'])
+    def get(self, request):
+        rows = BackendClient(self.bearer(request)).list_nfts()
+        if isinstance(rows, dict):
+            rows = rows.get('results') or rows.get('nfts') or []
+
+        origins = [str(row.get('nft_origin') or '') for row in rows]
+        open_now = set(
+            Listing.objects.filter(nft_origin__in=origins,
+                                   status__in=[ListingStatus.PENDING, ListingStatus.ACTIVE],
+                                   market_env=_market_env())
+            .values_list('nft_origin', flat=True))
+        blocked = blocked_origins()
+
+        nfts = []
+        for row in rows:
+            origin = str(row.get('nft_origin') or '')
+            if origin in blocked:
+                continue            # 運営が止めたものは出品の候補にも出さない
+            nfts.append({
+                'nft_origin': origin,
+                'name': row.get('name') or row.get('original_file_name') or '',
+                'content_type': row.get('content_type') or '',
+                'current_nft_location': row.get('current_nft_location') or '',
+                'listed': origin in open_now,
+            })
+        return success({'nfts': nfts})
 
 
 class ListingCancelDraftAPIView(AuthenticatedAPIView):

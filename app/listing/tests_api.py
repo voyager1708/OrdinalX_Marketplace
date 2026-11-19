@@ -7,7 +7,9 @@
   - **運営 blocklist が効いている**（一覧・詳細・サムネのすべてで止まる）
 """
 
-from django.test import TestCase
+from unittest import mock
+
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from listing.models import (
@@ -160,3 +162,62 @@ class ThumbTests(TestCase):
         BlockedContent.objects.create(kind=BlockedKind.NFT_ORIGIN, value=row.nft_origin)
         self.assertEqual(
             self.client.get(reverse('market:nft-thumb', args=[row.nft_origin])).status_code, 404)
+
+
+@override_settings(MARKET_ENV='dev')
+class MyNftsAPITests(TestCase):
+    """
+    出品できる手持ちの NFT（§6）。市場は所有を持たないので BE の一覧を中継し、
+    板の都合（出品中・運営 blocklist）だけを足す。
+    """
+
+    URL = '/market/api/v1/me/nfts'
+
+    def _rows(self):
+        return [
+            {'nft_origin': 'aa' * 32 + '_0', 'name': '出せるもの',
+             'content_type': 'image/png', 'current_nft_location': 'cc' * 32 + '_0'},
+            {'nft_origin': 'bb' * 32 + '_0', 'name': '出品中のもの',
+             'content_type': 'image/png', 'current_nft_location': 'dd' * 32 + '_0'},
+            {'nft_origin': 'ee' * 32 + '_0', 'name': '止められたもの',
+             'content_type': 'image/png', 'current_nft_location': 'ff' * 32 + '_0'},
+        ]
+
+    def test_it_requires_authentication(self):
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()['error']['code'], 'UNAUTHENTICATED')
+
+    def test_it_marks_what_is_already_listed_and_hides_blocked(self):
+        from listing.models import BlockedContent, BlockedKind, Listing, ListingStatus
+
+        rows = self._rows()
+        Listing.objects.create(nft_origin=rows[1]['nft_origin'], seller_principal=2,
+                               payout_script='00', price_satoshis=1,
+                               status=ListingStatus.ACTIVE, market_env='dev')
+        BlockedContent.objects.create(kind=BlockedKind.NFT_ORIGIN,
+                                      value=rows[2]['nft_origin'], reason='test')
+
+        with mock.patch('listing.be_client.BackendClient.list_nfts', return_value=rows):
+            data = self._get_authenticated()
+
+        origins = {n['nft_origin']: n for n in data['nfts']}
+        self.assertEqual(len(origins), 2, '運営が止めたものは候補に出さない')
+        self.assertFalse(origins[rows[0]['nft_origin']]['listed'])
+        self.assertTrue(origins[rows[1]['nft_origin']]['listed'])
+
+    def _get_authenticated(self):
+        """認証は差し替え点（`set_verifier`）から入れる。BE は叩かない。"""
+        from yp_marketplace.auth import Principal, TokenVerifier, set_verifier
+
+        class _Stub(TokenVerifier):
+            def verify(self, token):
+                return Principal(be_user_id=2, username='seller')
+
+        set_verifier(_Stub())
+        try:
+            response = self.client.get(self.URL, HTTP_AUTHORIZATION='Bearer t')
+        finally:
+            set_verifier(None)
+        self.assertEqual(response.status_code, 200, response.content[:300])
+        return response.json()['data']
