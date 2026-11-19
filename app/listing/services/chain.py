@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -67,6 +68,33 @@ def raw_tx(txid: str) -> str:
     if response.status_code >= 400:
         raise UpstreamError(f'could not fetch tx {txid[:12]}… (HTTP {response.status_code})')
     return response.text.strip()
+
+
+def script_hash(locking_script: bytes) -> str:
+    """
+    WoC の script hash（sha256 をバイト反転した hex）。
+
+    OrdLock の出力は**アドレスを持たない**ので `/address/.../unspent` では引けない。
+    だが売り手の pkh と価格が焼き込まれている以上スクリプトは出品ごとに一意なので、
+    script hash で「その出品の UTXO がまだ在るか」を直接引ける。
+    """
+    return hashlib.sha256(locking_script).digest()[::-1].hex()
+
+
+def script_unspent(locking_script: bytes) -> List[Dict[str, Any]]:
+    """そのスクリプト宛の未使用出力（mempool を含む。height 0 が未確認）。"""
+    response = _woc(f'/script/{script_hash(locking_script)}/unspent')
+    if response.status_code >= 400:
+        raise UpstreamError(f'could not list script utxos (HTTP {response.status_code})')
+    return response.json()
+
+
+def script_history(locking_script: bytes) -> List[Dict[str, Any]]:
+    """そのスクリプトに触れた tx の一覧（作った tx と、使った tx）。"""
+    response = _woc(f'/script/{script_hash(locking_script)}/history')
+    if response.status_code >= 400:
+        raise UpstreamError(f'could not fetch script history (HTTP {response.status_code})')
+    return response.json()
 
 
 def pick_fee_utxo(address: str, needed_satoshis: int) -> Dict[str, Any]:

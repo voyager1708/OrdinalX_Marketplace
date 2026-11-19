@@ -274,6 +274,13 @@ TAKEDOWN_PROVISIONAL_SLA_HOURS = _env_int("TAKEDOWN_PROVISIONAL_SLA_HOURS", 24)
 
 # テンプレートの TTL は BE と揃えて 300 秒（§5）
 TX_TEMPLATE_TTL_SECONDS = _env_int("TX_TEMPLATE_TTL_SECONDS", 300)
+# 未消費テンプレートを消すまでの保持期間（§11 expire_templates）
+TX_TEMPLATE_RETENTION_HOURS = _env_int("TX_TEMPLATE_RETENTION_HOURS", 72)
+# 突き合わせ（§11 reconcile_listings）。チェーンに痕跡が無い出品を invalid に
+# 落とすまでの猶予。ARC が受理しても採掘されずに落ちることがあるので短すぎない値に。
+RECONCILE_BROADCAST_GRACE_MINUTES = _env_int("RECONCILE_BROADCAST_GRACE_MINUTES", 30)
+# 1 回の worker で見る件数（WoC を叩く回数の上限 = これ × 2）
+RECONCILE_BATCH_SIZE = _env_int("RECONCILE_BATCH_SIZE", 200)
 # 二重購入の予約 TTL（§5「Purchase(pending) は TTL 3 分」）
 PURCHASE_RESERVATION_TTL_SECONDS = _env_int("PURCHASE_RESERVATION_TTL_SECONDS", 180)
 

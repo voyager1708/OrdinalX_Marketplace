@@ -16,9 +16,14 @@ SQL_USER=yp_market_user
 SQL_HOST=market-db
 SQL_PORT=5432
 
-# ワーカーは Phase 1 以降で実装する（§11）。実装したらここを開ける。
-# */5 *  * * * app cd /home/app/web && python manage.py reconcile_listings  >> logs/cron.log 2>&1
+# 実装済み（§11）。--quiet は「変化が無ければ黙る」でログを膨らませないため。
+*/5 *  * * * app cd /home/app/web && python manage.py reconcile_listings --quiet >> logs/cron.log 2>&1
+*    *  * * * app cd /home/app/web && python manage.py expire_templates   --quiet >> logs/cron.log 2>&1
+
+# 未実装（§11）。実装したらここを開ける。
+#   confirm_broadcasts は **Listing の状態は触らない**（遷移の持ち主は
+#   reconcile_listings ひとつ。2 つの worker が同じ列を書くと、どちらが正かを
+#   決められない）。Phase 3 で Purchase の放送追跡として実装する。
 # *    *  * * * app cd /home/app/web && python manage.py confirm_broadcasts >> logs/cron.log 2>&1
-# *    *  * * * app cd /home/app/web && python manage.py expire_templates   >> logs/cron.log 2>&1
 # *    *  * * * app cd /home/app/web && python manage.py advance_settlements >> logs/cron.log 2>&1
 # */10 *  * * * app cd /home/app/web && python manage.py verify_reservations >> logs/cron.log 2>&1
