@@ -24,6 +24,15 @@ JS が読む id（変更注意 — src/js/market-sign.js）:
       <input id="market-unlock-password" type="password" autocomplete="current-password"
              class="s006-input w-full" />
       <p id="market-unlock-error" class="s006-meta text-red-600 mt-2 hidden" role="alert"></p>
+      {% comment %}
+      パスワードを忘れたときの逃げ道。**PWA はアドレスバーが無い**ので、
+      ここにリンクが無いと復元画面へ行く手段がアプリ内から消える
+      （ウォレット側の profile にも常設の導線を置いてある）。
+      {% endcomment %}
+      <p class="s006-meta mt-2">
+        パスワードが分からないときは
+        <a href="/view/nc/restore" class="underline">リカバリーフレーズから鍵を戻せます</a>。
+      </p>
       <div class="flex gap-2 mt-5">
         <button type="button" id="market-unlock-confirm" class="s006-btn s006-btn--primary flex-1">
           解錠して署名
