@@ -113,6 +113,12 @@ class TxTemplate(models.Model):
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE,
                                 null=True, blank=True, related_name='templates')
 
+    # BE が発行したテンプレートの ID。**放送のときに BE へ返すのはこちら**。
+    # 市場の `template_id` は市場の中だけの識別子で、BE は知らない
+    # （混同して市場の ID を渡し、"Template not found or expired" で
+    #  出品が放送できなかった。2026-11-20 に実機で踏んだ）。
+    backend_template_id = models.CharField(max_length=64, blank=True)
+
     unsigned_tx_hex = models.TextField()
     inputs = models.JSONField(default=list)
     outputs = models.JSONField(default=list)

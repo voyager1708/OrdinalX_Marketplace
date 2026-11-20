@@ -165,6 +165,8 @@ def create_listing_draft(*, principal: int, token: str, nft_origin: str,
             kind=TemplateKind.LIST,
             principal=principal,
             listing=listing,
+            # BE の ID を**必ず控える**。放送で BE へ返すのはこちら
+            backend_template_id=str(template.get('template_id') or ''),
             unsigned_tx_hex=template.get('unsigned_transaction_hex') or '',
             inputs=inputs,
             outputs=outputs,
@@ -242,7 +244,14 @@ def submit_listing(*, principal: int, token: str, template_id: str,
                                 kind=EventKind.VERIFY_OK, principal=principal)
 
     try:
-        result = BackendClient(token).broadcast(str(row.template_id), signed_transaction_hex)
+        # **BE の ID**を返す（市場の template_id は BE が知らない）
+        if not row.backend_template_id:
+            raise MarketError(
+                'this draft was issued before the backend template id was recorded; '
+                'request a new draft',
+                ErrorCode.TEMPLATE_MISMATCH, 409)
+        result = BackendClient(token).broadcast(row.backend_template_id,
+                                                signed_transaction_hex)
     except MarketError as exc:
         ListingEvent.objects.create(listing=listing, template=row,
                                     kind=EventKind.BROADCAST_FAIL, principal=principal,

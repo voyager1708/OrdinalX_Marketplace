@@ -240,3 +240,61 @@ class AnnouncedFeeTests(TestCase):
         """端末は `Math.floor(price * bps / 10000)`。Python 側も切り捨てで揃える。"""
         data = self._draft(price=1_111)
         self.assertEqual(data['fee_satoshis'], 1_111 * 250 // 10_000)
+
+
+@override_settings(MARKET_ENV='dev', MARKET_DEV_PRINCIPALS=[str(PRINCIPAL)],
+                   BE_API_BASE_URL='http://be.invalid:8002')
+class BackendTemplateIdTests(TestCase):
+    """
+    放送で BE へ返すのは **BE が発行した ID**（S009 §8.2）。
+
+    市場の `template_id` は市場の中だけの識別子で、BE は知らない。取り違えると
+    BE が "Template not found or expired" を返し、**出品が一切放送できない**
+    （2026-11-20 に本番で踏んだ。4 段階の証跡は VERIFY_OK まで進んで落ちる）。
+    """
+
+    def setUp(self):
+        self.cancel_pubkey = _cancel_pubkey()
+
+    def _draft(self):
+        with mock.patch('listing.be_client.BackendClient.nft_script_template') as be:
+            be.side_effect = lambda **kw: _fake_template(kw['recipient_locking_script'])
+            return listing_service.create_listing_draft(
+                principal=PRINCIPAL, token=TOKEN, nft_origin=NFT_ORIGIN,
+                price_satoshis=PRICE, payout_script=PAYOUT_SCRIPT,
+                cancel_pubkey=self.cancel_pubkey)
+
+    def test_the_backend_id_is_recorded_at_draft(self):
+        data = self._draft()
+        row = TxTemplate.objects.get(template_id=data['template_id'])
+        self.assertEqual(row.backend_template_id, 'be-template-1')
+        self.assertNotEqual(row.backend_template_id, str(row.template_id))
+
+    def test_submit_sends_the_backend_id_not_ours(self):
+        data = self._draft()
+        row = TxTemplate.objects.get(template_id=data['template_id'])
+        signed = _signed_tx_hex(data['ordlock_script_hex'])
+
+        with mock.patch('listing.be_client.BackendClient.broadcast') as bc:
+            bc.return_value = {'txid': 'ab' * 32}
+            listing_service.submit_listing(
+                principal=PRINCIPAL, token=TOKEN,
+                template_id=data['template_id'], signed_transaction_hex=signed)
+
+        sent = bc.call_args[0][0]
+        self.assertEqual(sent, 'be-template-1', 'BE へ市場の ID を渡している')
+        self.assertNotEqual(sent, str(row.template_id))
+
+    def test_a_draft_without_the_backend_id_is_refused(self):
+        """古い行（BE の ID を控える前のもの）は作り直させる。"""
+        data = self._draft()
+        TxTemplate.objects.filter(template_id=data['template_id']).update(
+            backend_template_id='')
+        signed = _signed_tx_hex(data['ordlock_script_hex'])
+
+        with mock.patch('listing.be_client.BackendClient.broadcast') as bc, \
+             self.assertRaises(MarketError):
+            listing_service.submit_listing(
+                principal=PRINCIPAL, token=TOKEN,
+                template_id=data['template_id'], signed_transaction_hex=signed)
+        self.assertFalse(bc.called, '控えが無いのに BE を叩いている')
