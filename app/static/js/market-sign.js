@@ -63,11 +63,20 @@
           }
           confirm.disabled = true;
           try {
-            const mnemonic = await window.NcWallet.loadMnemonic(void 0, password);
+            const key = await window.NcWallet.resolveLocalKey({});
+            if (!key) throw new Error("no-local-key");
+            const mnemonic = await window.NcWallet.loadMnemonic(key, password);
             cleanup();
             resolve(mnemonic);
           } catch (e) {
-            showError(e && e.message === "no-local-key" ? "\u3053\u306E\u7AEF\u672B\u306B\u9375\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u30A6\u30A9\u30EC\u30C3\u30C8\u3067\u5FA9\u5143\u3057\u3066\u304F\u3060\u3055\u3044" : "\u30D1\u30B9\u30EF\u30FC\u30C9\u304C\u9055\u3044\u307E\u3059");
+            const message = e && e.message || "";
+            if (message === "no-local-key") {
+              showError("\u3053\u306E\u7AEF\u672B\u306B\u9375\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u30A6\u30A9\u30EC\u30C3\u30C8\u306E\u300C\u30D5\u30EC\u30FC\u30BA\u304B\u3089\u623B\u3059\u300D\u3067\u5165\u308C\u3066\u304F\u3060\u3055\u3044");
+            } else if (/decrypt|operation|cipher|password/i.test(message) || e instanceof DOMException) {
+              showError("\u30D1\u30B9\u30EF\u30FC\u30C9\u304C\u9055\u3044\u307E\u3059");
+            } else {
+              showError(`\u89E3\u9320\u3067\u304D\u307E\u305B\u3093: ${message || e}`);
+            }
           } finally {
             confirm.disabled = false;
           }

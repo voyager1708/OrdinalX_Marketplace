@@ -80,14 +80,29 @@
                 if (!password) { showError('パスワードを入れてください'); return; }
                 confirm.disabled = true;
                 try {
-                    // 端末内の暗号文を開く。失敗＝パスワード違い（または鍵が無い）
-                    const mnemonic = await window.NcWallet.loadMnemonic(undefined, password);
+                    // ⚠ 市場の画面は**利用者名を持たない**（シェルの data-nc-username は
+                    //   空。市場はページ描画時に principal を解決しないため）。
+                    //   `loadMnemonic(undefined, …)` にすると IndexedDB が
+                    //   `get(undefined)` で例外を投げ、それを「パスワードが違います」と
+                    //   誤って出してしまう（2026-11-20 に実機で踏んだ）。
+                    //   先に鍵のレコードを解決してから開く。
+                    const key = await window.NcWallet.resolveLocalKey({});
+                    if (!key) throw new Error('no-local-key');
+                    const mnemonic = await window.NcWallet.loadMnemonic(key, password);
                     cleanup();
                     resolve(mnemonic);
                 } catch (e) {
-                    showError(e && e.message === 'no-local-key'
-                        ? 'この端末に鍵がありません。ウォレットで復元してください'
-                        : 'パスワードが違います');
+                    const message = (e && e.message) || '';
+                    if (message === 'no-local-key') {
+                        showError('この端末に鍵がありません。ウォレットの'
+                            + '「フレーズから戻す」で入れてください');
+                    } else if (/decrypt|operation|cipher|password/i.test(message)
+                               || e instanceof DOMException) {
+                        showError('パスワードが違います');
+                    } else {
+                        // 原因を握り潰さない。握り潰したせいで今回ここで止まった
+                        showError(`解錠できません: ${message || e}`);
+                    }
                 } finally {
                     confirm.disabled = false;
                 }

@@ -169,3 +169,33 @@ class BuyPageTests(TestCase):
         board = self.client.get(reverse('board-fragment')).content.decode()
         self.assertTrue(reverse('buy', args=[self.listing.id]) in board,
                         '板から購入の画面へ行けない')
+
+
+class UnlockKeyResolutionTests(SimpleTestCase):
+    """
+    市場の画面は **利用者名を持たない**（シェルの `data-nc-username` は空）。
+
+    `loadMnemonic(undefined, …)` を呼ぶと IndexedDB が `get(undefined)` で
+    例外を投げ、呼ぶ側がそれを「パスワードが違います」と誤表示する。
+    2026-11-20 に実機で詰まったのがこれで、**正しいパスワードが拒否されて見える**。
+    """
+
+    SOURCE = Path(settings.BASE_DIR) / 'src/js/market-sign.js'
+    BUILT = STATIC_JS / 'market-sign.js'
+
+    def test_the_key_record_is_resolved_before_decrypting(self):
+        source = self.SOURCE.read_text()
+        # 失敗時にファイル全体を吐かないよう真偽だけを見る
+        self.assertTrue('resolveLocalKey' in source, '鍵のレコードを解決していない')
+        self.assertTrue('loadMnemonic(key, password)' in source,
+                        '解決した鍵で開いていない（undefined だと IndexedDB が例外）')
+
+    def test_an_unexpected_error_is_not_reported_as_a_wrong_password(self):
+        """原因を握り潰さない（握り潰したせいで今回の切り分けが遅れた）。"""
+        source = self.SOURCE.read_text()
+        self.assertTrue('解錠できません' in source, '想定外の失敗を握り潰している')
+
+    @unittest.skipUnless(STATIC_JS.exists(), 'static/js が無い（npm run build）')
+    def test_the_fix_is_built(self):
+        self.assertTrue('resolveLocalKey' in self.BUILT.read_text(),
+                        'ビルドが古い（本番だけ直っていない状態になる）')
